@@ -1,5 +1,5 @@
 CC 			:= gcc
-CFLAGS 	:= -Wall -Wpedantic -g
+CFLAGS 	:= -Wall -Wpedantic -std=gnu11 -ggdb
 
 CEXT 		:= c
 OBJEXT 	:= o
