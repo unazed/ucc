@@ -15,9 +15,14 @@ base_thunk_function()
     "mov %%rdx, %%rcx;\n\t"
     "mov %%rsi, %%rdx;\n\t"
     "mov %%rdi, %%rsi;\n\t"
+    "add %1, %%rax;\n\t"
     "mov (%%rax), %%rdi;\n\t"
-    "jmp *0x8(%%rax);\n\t"
-    :: "i" (sizeof (struct impln(thunk)))
+    "add %2, %%rax;\n\t"
+    "jmp *(%%rax);\n\t"
+    :: "i" (sizeof (struct impln(thunk))),
+       "i" (offsetof (struct impln(thunk), self)),
+       "i" (offsetof (struct impln(thunk), target) - offsetof (struct impln(thunk), self))
+    : "rax", "rdi", "rsi", "rdx", "rcx", "r8", "r9"
   );
 }
 

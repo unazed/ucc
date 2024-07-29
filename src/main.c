@@ -1,27 +1,24 @@
-#include "../include/test.h"
+#include "../include/tokenizer.h"
 
-declare_thunk_method(file_t, nread_t, read)(
-  thunk_self_ty(file_t) self, nread_t amount, char* out)
-{
-  thunk_private_attr(self, pos) += fread (
-    out, sizeof (char), amount, thunk_public_attr (self, fd));
-  return 0;
-}
-
-declare_thunk_method(file_t, bool, open)(
-  thunk_self_ty(file_t) self, const char* path, char* modes)
-{
-  thunk_public_attr (self, fd) = fopen (path, modes);
-  return false;
-}
+#include <stdio.h>
+#include <stdlib.h>
 
 int
-main (void)
+main (int argc, char** argv)
 {
-  auto file = new_object(file_t);
-  file->open ("test_file", "r");
-  char out[64];
-  file->read (63, out);
-  free_object (file);
+  if (argc != 2)
+    {
+      ucc_error("no input files\n");
+      return EXIT_FAILURE;    
+    }
+  auto tokenizer = new_object(tokenizer_t);
+  thunk_unwrap(tokenizer->open_file (argv[1], "r"), {
+    file_exception* ctx = base_exc;
+    ucc_error ("%s (%s)\n", ctx->msg, strerror (ctx->errcode));
+  }, {
+    ucc_log ("tokenizer->open_file() OK\n");
+  });
+  tokenizer->tokenize ();
+  free_object(tokenizer);
   return EXIT_SUCCESS;
 }
