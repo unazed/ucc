@@ -4,10 +4,12 @@
   "arguments": [
    "gcc",
    "-Wall",
+   "-O0",
    "-fcf-protection=none",
    "-ggdb",
    "-fcompare-debug-second",
    "-std=gnu17",
+   "-Wno-strict-prototypes",
    "-Iinclude/",
    "-MMD",
    "-MP",
@@ -24,10 +26,12 @@
   "arguments": [
    "gcc",
    "-Wall",
+   "-O0",
    "-fcf-protection=none",
    "-ggdb",
    "-fcompare-debug-second",
    "-std=gnu17",
+   "-Wno-strict-prototypes",
    "-Iinclude/",
    "-MMD",
    "-MP",
@@ -44,10 +48,12 @@
   "arguments": [
    "gcc",
    "-Wall",
+   "-O0",
    "-fcf-protection=none",
    "-ggdb",
    "-fcompare-debug-second",
    "-std=gnu17",
+   "-Wno-strict-prototypes",
    "-Iinclude/",
    "-MMD",
    "-MP",
@@ -64,10 +70,12 @@
   "arguments": [
    "gcc",
    "-Wall",
+   "-O0",
    "-fcf-protection=none",
    "-ggdb",
    "-fcompare-debug-second",
    "-std=gnu17",
+   "-Wno-strict-prototypes",
    "-Iinclude/",
    "-MMD",
    "-MP",
@@ -78,5 +86,27 @@
    "-lm"
   ],
   "file": "src//tokenizer.c"
+ },
+ {
+  "directory": "/home/unazed/Programming/c/ucc",
+  "arguments": [
+   "gcc",
+   "-Wall",
+   "-O0",
+   "-fcf-protection=none",
+   "-ggdb",
+   "-fcompare-debug-second",
+   "-std=gnu17",
+   "-Wno-strict-prototypes",
+   "-Iinclude/",
+   "-MMD",
+   "-MP",
+   "-c",
+   "src//list.c",
+   "-o",
+   "build//list.o",
+   "-lm"
+  ],
+  "file": "src//list.c"
  }
 ]

@@ -1,30 +1,37 @@
-#include "../include/common.h"
-#include "../include/tokenizer.h"
+#include "common.h"
+#include "tokenizer.h"
 
 #include <errno.h>
 
-void
-parse_external_declaration (thunk_self_ty(tokenizer_t) self)
+declare_thunk_method(tokenizer_t, load_file) (
+  thunk_self_ty(tokenizer_t) self, const char* const path)
 {
-  
-}
-
-declare_thunk_method(tokenizer_t, open_file)(
-  thunk_self_ty(tokenizer_t) self, InArg const char* const path,
-  InArg const char* const modes)
-{
-  auto fp = thunk_public_attr(self, fp) = fopen (path, modes);
+  auto fp = fopen (path, "r");
   if (fp == NULL)
     {
-      file_exception exc = { .msg = "fopen() failed", .errcode = errno };
-      return thunk_error_t(tokenizer_t, open_file, exc);
+      file_exception exc = {.msg = "fopen() failed",.errcode = errno };
+      return thunk_error_t(tokenizer_t, load_file, exc);
     }
-  return thunk_result_t(tokenizer_t, open_file, true);
+
+  struct translation_unit* tru = calloc (1, sizeof (struct translation_unit));
+  tru->fp = fp;
+  thunk_public_attr(self, context).translation_units->append (tru);
+  return thunk_result_t(tokenizer_t, load_file, true);
 }
 
-declare_thunk_method(tokenizer_t, tokenize)(
-  thunk_self_ty(tokenizer_t) self)
+declare_thunk_initializer(tokenizer_t)(thunk_self_ty(tokenizer_t) self)
 {
-  auto fp = thunk_public_attr(self, fp);
-  
+  thunk_public_attr(self, context).translation_units = new_object(list_t);
+}
+
+declare_thunk_finalizer(tokenizer_t)(thunk_self_ty(tokenizer_t) self)
+{
+  list_for_each_entry(thunk_public_attr(self, context).translation_units,
+                      current)
+  {
+    struct translation_unit* tru = current->val;
+    fclose (tru->fp);
+    free (tru);
+  }
+  free_object(thunk_public_attr(self, context).translation_units);
 }

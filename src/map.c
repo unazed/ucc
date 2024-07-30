@@ -1,5 +1,5 @@
-#include "../include/map.h"
-#include "../include/common.h"
+#include "map.h"
+#include "common.h"
 #include "thunk.h"
 
 #include <assert.h>
@@ -7,20 +7,6 @@
 #include <stdbool.h>
 #include <time.h>
 #include <stdlib.h>
-
-#define max(a,b)             \
-({                           \
-    __typeof__ (a) _a = (a); \
-    __typeof__ (b) _b = (b); \
-    _a > _b ? _a : _b;       \
-})
-
-#define min(a,b)             \
-({                           \
-    __typeof__ (a) _a = (a); \
-    __typeof__ (b) _b = (b); \
-    _a < _b ? _a : _b;       \
-})
 
 #define SHOULD_RESIZE(self) ( \
   (float)(thunk_private_attr ((self), nr_collisions)) \

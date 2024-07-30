@@ -1,4 +1,5 @@
-#include "../include/thunk.h"
+#include "thunk.h"
+
 #include <stddef.h>
 #include <unistd.h>
 #include <sys/mman.h>

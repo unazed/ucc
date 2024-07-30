@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdio.h>
+
 #define DECL_TYPE(name) \
   typedef struct _impl_##name *name; \
   struct _impl_##name
@@ -12,6 +14,20 @@
 #define CFGRED "\e[0;31m"
 #define CFGBLUE "\e[0;34m"
 #define CFGBOLDWHITE "\e[1;37m"
+
+#define max(a,b) \
+({ \
+    __typeof__ (a) _a = (a); \
+    __typeof__ (b) _b = (b); \
+    _a > _b ? _a : _b; \
+})
+
+#define min(a,b) \
+({ \
+    __typeof__ (a) _a = (a); \
+    __typeof__ (b) _b = (b); \
+    _a < _b ? _a : _b; \
+})
 
 #define ucc_error(msg, ...) \
   printf (CFGBOLDWHITE "%s:%d" CRESET ", " CFGRED "critical" CRESET \

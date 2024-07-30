@@ -29,6 +29,7 @@
   concat3(impln(thunk_name), _SPECIAL__, method_name)
 #define thunk_special_dummy_name(thunk_name, method_name) \
   concat3(impln(thunk_name), _DUMMY_SPECIAL__, method_name)
+#define thunk_self_ty(thunk_name) impln(thunk_name)
 
 /* Definition macros */
 #define define_thunk_method(thunk_name, ret_ty, method_name) \
@@ -78,7 +79,6 @@
   (thunk_object)->impln(public).attr
 #define thunk_private_attr(thunk_object, attr) \
   (thunk_object)->impln(private).attr
-#define thunk_self_ty(thunk_name) impln(thunk_name)
  
 /* Decl. macros */
 #define declare_thunk_method(thunk_name, method_name) \
