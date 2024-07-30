@@ -1,6 +1,6 @@
 CC 			:= gcc
 CFLAGS 	:= -Wall -fcf-protection=none -ggdb -fcompare-debug-second -std=gnu17
-
+LIBS = -lm
 CEXT 		:= c
 OBJEXT 	:= o
 DEPEXT 	:= d
@@ -24,10 +24,10 @@ clean:
 	rm -rf $(OBJDIR) $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) $(COPTS) -I$(INCDIR) $^ -o $@
+	$(CC) $(CFLAGS) $(COPTS) -I$(INCDIR) $^ -o $@ $(LIBS)
 
 $(OBJDIR)/%.$(OBJEXT): $(SRCDIR)/%.$(CEXT) Makefile
-	$(CC) $(CFLAGS) $(COPTS) -I$(INCDIR) -MMD -MP -c $< -o $@
+	$(CC) $(CFLAGS) $(COPTS) -I$(INCDIR) -MMD -MP -c $< -o $@ $(LIBS)
 
 $(OBJDIR):
 	mkdir -p $@

@@ -8,6 +8,11 @@
 #include <stdbool.h>
 #include <errno.h>
 
+typedef struct
+{
+  
+} translation_unit_t;
+
 define_thunk_method_maythrow(tokenizer_t, bool, tokenize)(void);
 define_thunk_method_maythrow(tokenizer_t, bool, open_file)(InArg char* path,
     InArg char* modes)
