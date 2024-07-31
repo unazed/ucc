@@ -18,6 +18,8 @@ define_thunk_method(list_t, void*, insert)(size_t index, void* val);
 define_thunk_method(list_t, void*, append)(void* val);
 define_thunk_method(list_t, bool, remove)(size_t index);
 define_thunk_method(list_t, void*, get)(size_t index);
+define_thunk_method(list_t, void*, pop)(size_t index)
+  __attribute__((warn_unused_result));
 
 define_thunk_object(list_t, {
   thunk_attr_public({
@@ -33,6 +35,7 @@ define_thunk_object(list_t, {
     thunk_bind_method(list_t, insert);
     thunk_bind_method(list_t, remove);
     thunk_bind_method(list_t, get);
+    thunk_bind_method(list_t, pop)
   });
 });
 

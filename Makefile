@@ -6,9 +6,9 @@ CEXT 		:= c
 OBJEXT 	:= o
 DEPEXT 	:= d
 HEXT 		:= .h
-SRCDIR 	:= src/
-INCDIR 	:= include/
-OBJDIR 	:= build/
+SRCDIR 	:= src
+INCDIR 	:= include
+OBJDIR 	:= build
 
 TARGET 	:= ucc
 

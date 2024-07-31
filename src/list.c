@@ -104,6 +104,13 @@ declare_thunk_method(list_t, get)(thunk_self_ty(list_t) self, size_t index)
   return get_entry (self, index)->val;
 }
 
+declare_thunk_method(list_t, pop)(thunk_self_ty(list_t) self, size_t index)
+{
+  auto val = self->get (index);
+  self->remove (index);
+  return val;
+}
+
 declare_thunk_initializer(list_t)(thunk_self_ty(list_t) self)
 {
   thunk_public_attr(self, length) = 0;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <assert.h>
 #include <stdio.h>
 
 #define DECL_TYPE(name) \
@@ -35,8 +36,9 @@
 
 #ifdef DEBUG
   #define ucc_log(msg, ...) \
-    printf (CFGBOLDWHITE "[%s:%d, %s()]" CRESET "\n" CFGBLUE "\tdebug" CRESET \
-        ": " msg, __FILE__, __LINE__, __func__,##__VA_ARGS__)
+    printf (CFGBLUE "debug" CRESET ": " msg, ##__VA_ARGS__)
 #else
   #define ucc_log(msg, ...)
 #endif // DEBUG
+
+#define __builtin_unimplemented() assert (0 && "Unimplemented routine")

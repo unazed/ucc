@@ -23,6 +23,7 @@ main (int argc, char **argv)
         ucc_log ("loaded '%s' as translation unit OK\n", argv[i]);
       }
     );
+  tokenizer->tokenize ();
   free_object (tokenizer);
   return EXIT_SUCCESS;
 }
