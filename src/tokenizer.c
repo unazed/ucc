@@ -10,6 +10,7 @@ new_bytestream (void* data, size_t size, size_t length)
   auto stream = new_object(bytestream_t);
   thunk_public_attr(stream, data) = data;
   thunk_public_attr(stream, size) = size;
+  thunk_public_attr(stream, length) = length;
   return stream;
 }
 
@@ -36,7 +37,7 @@ declare_thunk_method(tokenizer_t, load_file) (
   assert (nread == file_size / FILE_MEMBSIZE);
   fclose (fp);
 
-  tru->io.stream = new_bytestream (data, FILE_MEMBSIZE, nread);
+  tru->io.stream = new_bytestream (data, FILE_MEMBSIZE, file_size);
   ucc_log("%s: created bytestream (%zu bytes) @ %p\n", path,
           nread, tru->io.stream);
   thunk_public_attr(self, context).translation_units->append (tru);
@@ -49,7 +50,13 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
 {
   auto stream = unit->io.stream;
   auto lexemes = new_object(list_t);
-  // __builtin_unimplemented();
+
+  char* chr;
+  while ((chr = stream->get ()))
+  {
+    printf ("%d (next: %p)\n", *chr, stream->peek (1));
+  }
+
   return lexemes;
 }
 
