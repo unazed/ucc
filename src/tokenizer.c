@@ -5,7 +5,7 @@
 #include <errno.h>
 
 impln(bytestream_t)
-new_bytestream (void* data, size_t size)
+new_bytestream (void* data, size_t size, size_t length)
 {
   auto stream = new_object(bytestream_t);
   thunk_public_attr(stream, data) = data;
@@ -36,7 +36,7 @@ declare_thunk_method(tokenizer_t, load_file) (
   assert (nread == file_size / FILE_MEMBSIZE);
   fclose (fp);
 
-  tru->io.stream = new_bytestream (data, FILE_MEMBSIZE);
+  tru->io.stream = new_bytestream (data, FILE_MEMBSIZE, nread);
   ucc_log("%s: created bytestream (%zu bytes) @ %p\n", path,
           nread, tru->io.stream);
   thunk_public_attr(self, context).translation_units->append (tru);

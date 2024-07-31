@@ -108,5 +108,137 @@
    "-lm"
   ],
   "file": "src//list.c"
+ },
+ {
+  "directory": "/home/unazed/Programming/c/ucc",
+  "arguments": [
+   "gcc",
+   "-Wall",
+   "-O0",
+   "-fcf-protection=none",
+   "-ggdb",
+   "-fcompare-debug-second",
+   "-std=gnu17",
+   "-Wno-strict-prototypes",
+   "-Iinclude",
+   "-MMD",
+   "-MP",
+   "-c",
+   "src/bytestream.c",
+   "-o",
+   "build/bytestream.o",
+   "-lm"
+  ],
+  "file": "src/bytestream.c"
+ },
+ {
+  "directory": "/home/unazed/Programming/c/ucc",
+  "arguments": [
+   "gcc",
+   "-Wall",
+   "-O0",
+   "-fcf-protection=none",
+   "-ggdb",
+   "-fcompare-debug-second",
+   "-std=gnu17",
+   "-Wno-strict-prototypes",
+   "-Iinclude",
+   "-MMD",
+   "-MP",
+   "-c",
+   "src/list.c",
+   "-o",
+   "build/list.o",
+   "-lm"
+  ],
+  "file": "src/list.c"
+ },
+ {
+  "directory": "/home/unazed/Programming/c/ucc",
+  "arguments": [
+   "gcc",
+   "-Wall",
+   "-O0",
+   "-fcf-protection=none",
+   "-ggdb",
+   "-fcompare-debug-second",
+   "-std=gnu17",
+   "-Wno-strict-prototypes",
+   "-Iinclude",
+   "-MMD",
+   "-MP",
+   "-c",
+   "src/main.c",
+   "-o",
+   "build/main.o",
+   "-lm"
+  ],
+  "file": "src/main.c"
+ },
+ {
+  "directory": "/home/unazed/Programming/c/ucc",
+  "arguments": [
+   "gcc",
+   "-Wall",
+   "-O0",
+   "-fcf-protection=none",
+   "-ggdb",
+   "-fcompare-debug-second",
+   "-std=gnu17",
+   "-Wno-strict-prototypes",
+   "-Iinclude",
+   "-MMD",
+   "-MP",
+   "-c",
+   "src/map.c",
+   "-o",
+   "build/map.o",
+   "-lm"
+  ],
+  "file": "src/map.c"
+ },
+ {
+  "directory": "/home/unazed/Programming/c/ucc",
+  "arguments": [
+   "gcc",
+   "-Wall",
+   "-O0",
+   "-fcf-protection=none",
+   "-ggdb",
+   "-fcompare-debug-second",
+   "-std=gnu17",
+   "-Wno-strict-prototypes",
+   "-Iinclude",
+   "-MMD",
+   "-MP",
+   "-c",
+   "src/thunk.c",
+   "-o",
+   "build/thunk.o",
+   "-lm"
+  ],
+  "file": "src/thunk.c"
+ },
+ {
+  "directory": "/home/unazed/Programming/c/ucc",
+  "arguments": [
+   "gcc",
+   "-Wall",
+   "-O0",
+   "-fcf-protection=none",
+   "-ggdb",
+   "-fcompare-debug-second",
+   "-std=gnu17",
+   "-Wno-strict-prototypes",
+   "-Iinclude",
+   "-MMD",
+   "-MP",
+   "-c",
+   "src/tokenizer.c",
+   "-o",
+   "build/tokenizer.o",
+   "-lm"
+  ],
+  "file": "src/tokenizer.c"
  }
 ]

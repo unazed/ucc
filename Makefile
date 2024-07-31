@@ -24,6 +24,9 @@ all: $(OBJDIR) $(TARGET)
 clean:
 	rm -rf $(OBJDIR) $(TARGET)
 
+db:
+	.venv/bin/compiledb make -B
+
 $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) $(COPTS) -I$(INCDIR) $^ -o $@ $(LIBS)
 

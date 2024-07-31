@@ -3,8 +3,6 @@
 
 #include <assert.h>
 
-#define clamp(a, b, x) max(a, min(b, x))
-
 struct list_item*
 get_entry (thunk_self_ty(list_t) self, size_t index)
 {
