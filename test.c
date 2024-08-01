@@ -1,5 +1,5 @@
 int
 main (void)
 {
-  return 0128.5lu + 0;
+  return 0x123ull;
 }

@@ -127,23 +127,42 @@ consume_integer_suffix (struct lexeme* constant,
       ucc_error("invalid suffix for integer '%.*s'\n",
                 constant->length + suffix_length, constant->raw);
     }
-  ucc_log ("lexed number with suffix: %.*s\n", suffix_length, start_suffix);
+  ucc_log ("lexed number with suffix: '%.*s'\n", suffix_length, start_suffix);
   stream->consume (constant->length + suffix_length);
   return copy_lexeme_into_heap(*constant);
 }
 
 struct lexeme*
-consume_floating_number (impln(bytestream_t) stream)
+consume_floating_number (impln(bytestream_t) stream, bool is_hex)
 {
-  ucc_log("consuming floating point number\n");
-  __builtin_unimplemented();
+  ucc_log ("%s", is_hex? "lexing hexadecimal floating point\n": "lexing regular float\n");
+  __builtin_unimplemented ();
 }
 
 struct lexeme*
 consume_hexadecimal_number (impln(bytestream_t) stream)
 {
-  ucc_log("consuming hexadecimal number\n");
-  __builtin_unimplemented();
+  char* current;
+  struct lexeme hex = {
+    .type = IntegerConstant,
+    .ctx_for.integer_constant.base = HexadecimalConstant,
+    .length = 2,
+    .raw = stream->peek (0)
+  };
+
+  while ((current = stream->peek (hex.length)) != NULL
+        && isxdigit (*current))
+    hex.length++;
+
+  if (current && *current == '.')
+    return consume_floating_number (stream, true);  // :(
+  if (current && isalpha (*current))
+    return consume_integer_suffix (&hex, stream);
+
+  ucc_log ("lexed hexadecimal: '%.*s'\n", hex.length, stream->peek (0));
+
+  stream->consume (hex.length);
+  return copy_lexeme_into_heap (hex);
 }
 
 struct lexeme*
@@ -156,7 +175,7 @@ consume_octal_number (impln(bytestream_t) stream)
     .type = IntegerConstant,
     .ctx_for.integer_constant.base = OctalConstant,
     .raw = stream->peek (0),
-    .length = 0
+    .length = 1
   };
 
   while ((current = stream->peek (octal.length)) != NULL
@@ -167,7 +186,7 @@ consume_octal_number (impln(bytestream_t) stream)
     octal.length++;
   }
 
-  ucc_log ("parsed octal (%s) %.*s\n", maybe_decimal? "maybe": "definitely",
+  ucc_log ("lexed octal (%s) '%.*s'\n", maybe_decimal? "maybe": "definitely",
            octal.length, stream->peek (0));
 
   if (maybe_decimal)
@@ -180,7 +199,7 @@ consume_octal_number (impln(bytestream_t) stream)
         ucc_error("invalid digit in octal '%.*s'\n", octal.length,
                   stream->peek (0));
       else
-        return consume_floating_number (stream);
+        return consume_floating_number (stream, false);
     }
 
   if (current && isalpha (*current))
@@ -201,7 +220,7 @@ consume_number (impln(bytestream_t) stream)
   if (*current == '0' && (next != NULL && isdigit (*next)))
     return consume_octal_number (stream);
   if (*current == '.' || (next != NULL && *next == '.'))
-    return consume_floating_number (stream);
+    return consume_floating_number (stream, false);
   
   struct lexeme decimal_constant = {
     .length = 0,
@@ -215,7 +234,7 @@ consume_number (impln(bytestream_t) stream)
     if (!isdigit (*current))
     {
       if (*current == '.')
-        return consume_floating_number (stream);
+        return consume_floating_number (stream, false);
       if (isspace (*current) || *current == ';')
         break;
       return consume_integer_suffix (&decimal_constant, stream);
