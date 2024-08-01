@@ -1,6 +1,8 @@
 #include "bytestream.h"
 #include "common.h"
 
+#include <string.h>
+
 size_t
 clamp_to_bounds(thunk_self_ty(bytestream_t) self, size_t n, size_t offs)
 {
@@ -15,7 +17,7 @@ declare_thunk_method(bytestream_t, peek)(thunk_self_ty(bytestream_t) self,
 {
   if (thunk_public_attr(self, pos) == thunk_public_attr(self, length))
     return NULL;
-  lookahead = clamp_to_bounds(self, lookahead - 1, 1);
+  lookahead = clamp_to_bounds(self, lookahead, 1);
   return (char *)thunk_public_attr(self, data)
          + (thunk_public_attr(self, pos) + lookahead)
            * thunk_public_attr(self, size);
@@ -28,16 +30,30 @@ declare_thunk_method(bytestream_t, consume)(thunk_self_ty(bytestream_t) self,
   return n;
 }
 
-declare_thunk_method(bytestream_t, get)(thunk_self_ty(bytestream_t) self)
+declare_thunk_method(bytestream_t, consume_until)(
+  thunk_self_ty(bytestream_t) self, const char* accept)
 {
-  void* c = self->peek (1);
-  self->consume (1);
-  return c;
+  assert ((thunk_public_attr(self, size) == 1)
+          && "consume_until() only valid for char-like streams");
+  ssize_t length = 0;
+  for (;; ++length)
+  {
+    char* current = self->peek (0);
+    if (current == NULL)
+      break;
+    if (strchr (accept, *current) != NULL)
+      return length;
+    self->consume (1);
+  }
+  return length;
 }
 
-declare_thunk_method(bytestream_t, current)(thunk_self_ty(bytestream_t) self)
+declare_thunk_method(bytestream_t, get)(thunk_self_ty(bytestream_t) self)
 {
-  return self->peek (0);
+  void* c = self->peek (0);
+  if (c != NULL)
+    self->consume (1);
+  return c;
 }
 
 declare_thunk_method(bytestream_t, is_eof)(thunk_self_ty(bytestream_t) self)

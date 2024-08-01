@@ -153,6 +153,7 @@ declare_thunk_method(map_t, maybe_resize)(thunk_self_ty(map_t) self)
   free_slots (self);
   thunk_public_attr(self, slots) = new_slots;
   thunk_public_attr(self, capacity) = REALLOC_CAPACITY(self);
+  return thunk_result_t(map_t, maybe_resize, true);
 };
 
 declare_thunk_method(map_t, get)(thunk_self_ty(map_t) self, const char* key)
