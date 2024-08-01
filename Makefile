@@ -1,6 +1,6 @@
 CC 			:= gcc
 CFLAGS 	:= -Wall -O0 -fcf-protection=none -ggdb -fcompare-debug-second \
-					 -std=gnu17 -Wno-strict-prototypes
+					 -std=gnu17 -Wno-strict-prototypes -Wno-format
 LIBS = -lm
 CEXT 		:= c
 OBJEXT 	:= o

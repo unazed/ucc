@@ -9,6 +9,7 @@
 
 enum lexeme_ty
 {
+  NewLine,
   IntegerConstant,
   FloatingConstant,
   CharacterConstant,

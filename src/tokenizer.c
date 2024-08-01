@@ -86,10 +86,50 @@ declare_thunk_method(tokenizer_t, load_file) (
 }
 
 struct lexeme*
-consume_octal_number (impln(bytestream_t) stream)
+consume_integer_suffix (struct lexeme* constant,
+                        impln(bytestream_t) stream)
 {
-  ucc_log("consuming octal number\n");
-  __builtin_unimplemented();
+#define SET_SUFFIX(lexeme, ctx, type, unsigned) \
+  { \
+    (lexeme)->ctx_for.ctx.suffix = type; \
+    (lexeme)->ctx_for.ctx.is_unsigned = unsigned; \
+  }
+
+  char *current;
+  size_t suffix_length = 0;
+
+  while ((current = stream->peek (constant->length + suffix_length))
+         != NULL && isalpha (*current))
+    suffix_length++;
+
+  char* start_suffix = stream->peek (constant->length);
+
+  if (!strncasecmp (start_suffix, "ull", suffix_length)
+      || !strncasecmp (start_suffix, "llu", suffix_length))
+    {
+      SET_SUFFIX(constant, integer_constant, LongLongSuffix, true);
+    }
+  else if (!strncasecmp (start_suffix, "ul", suffix_length)
+      || !strncasecmp (start_suffix, "lu", suffix_length))
+    {
+      SET_SUFFIX(constant, integer_constant, LongLongSuffix, true);
+    }
+  else if (!strncasecmp (start_suffix, "l", suffix_length))
+    {
+      SET_SUFFIX(constant, integer_constant, LongSuffix, false);
+    }
+  else if (!strncasecmp (start_suffix, "u", suffix_length))
+    {
+      SET_SUFFIX(constant, integer_constant, NoIntegerSuffix, true);
+    }
+  else
+    {
+      ucc_error("invalid suffix for integer '%.*s'\n",
+                constant->length + suffix_length, constant->raw);
+    }
+  ucc_log ("lexed number with suffix: %.*s\n", suffix_length, start_suffix);
+  stream->consume (constant->length + suffix_length);
+  return copy_lexeme_into_heap(*constant);
 }
 
 struct lexeme*
@@ -107,51 +147,47 @@ consume_hexadecimal_number (impln(bytestream_t) stream)
 }
 
 struct lexeme*
-consume_integer_suffix (struct lexeme* decimal_constant,
-                        impln(bytestream_t) stream)
+consume_octal_number (impln(bytestream_t) stream)
 {
-#define SET_SUFFIX(lexeme, ctx, type, unsigned) \
-  { \
-    (lexeme)->ctx_for.ctx.suffix = type; \
-    (lexeme)->ctx_for.ctx.is_unsigned = unsigned; \
+  char *current;
+  bool maybe_decimal = false;
+
+  struct lexeme octal = {
+    .type = IntegerConstant,
+    .ctx_for.integer_constant.base = OctalConstant,
+    .raw = stream->peek (0),
+    .length = 0
+  };
+
+  while ((current = stream->peek (octal.length)) != NULL
+        && isdigit (*current))
+  {
+    if (*current > '7')
+      maybe_decimal = true;
+    octal.length++;
   }
 
-  char *current;
-  size_t suffix_length = 0;
+  ucc_log ("parsed octal (%s) %.*s\n", maybe_decimal? "maybe": "definitely",
+           octal.length, stream->peek (0));
 
-  while ((current = stream->peek (decimal_constant->length + suffix_length))
-         != NULL && isalpha (*current))
-    suffix_length++;
+  if (maybe_decimal)
+    {
+      /* OctalDigits '.' DigitSequence FloatSuffix?
+       * is coerced into a DecimalFloatingConstant
+       * on GCC
+       */
+      if (current == NULL || *current != '.')
+        ucc_error("invalid digit in octal '%.*s'\n", octal.length,
+                  stream->peek (0));
+      else
+        return consume_floating_number (stream);
+    }
 
-  char* start_suffix = stream->peek (decimal_constant->length);
+  if (current && isalpha (*current))
+    return consume_integer_suffix (&octal, stream);
 
-  ucc_log("suffix_length %zu, %.*s\n", suffix_length, suffix_length, start_suffix);
-  if (!strncasecmp (start_suffix, "ull", suffix_length)
-      || !strncasecmp (start_suffix, "llu", suffix_length))
-    {
-      SET_SUFFIX(decimal_constant, integer_constant, LongLongSuffix, true);
-    }
-  else if (!strncasecmp (start_suffix, "ul", suffix_length)
-      || !strncasecmp (start_suffix, "lu", suffix_length))
-    {
-      SET_SUFFIX(decimal_constant, integer_constant, LongLongSuffix, true);
-    }
-  else if (!strncasecmp (start_suffix, "l", suffix_length))
-    {
-      SET_SUFFIX(decimal_constant, integer_constant, LongSuffix, false);
-    }
-  else if (!strncasecmp (start_suffix, "u", suffix_length))
-    {
-      SET_SUFFIX(decimal_constant, integer_constant, NoIntegerSuffix, true);
-    }
-  else
-    {
-      ucc_error("invalid suffix for integer '%.*s'\n",
-                decimal_constant->length + suffix_length,
-                decimal_constant->raw);
-    }
-  stream->consume (decimal_constant->length + suffix_length);
-  return copy_lexeme_into_heap(*decimal_constant);
+  stream->consume (octal.length);
+  return copy_lexeme_into_heap (octal);
 }
 
 struct lexeme*
@@ -182,7 +218,6 @@ consume_number (impln(bytestream_t) stream)
         return consume_floating_number (stream);
       if (isspace (*current) || *current == ';')
         break;
-      ucc_log("number has suffix\n");
       return consume_integer_suffix (&decimal_constant, stream);
     }
     decimal_constant.length++;
@@ -233,6 +268,7 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
       #define BINARY_LEXEME_CASE(list, c, stream, type_) \
         case c: \
         { \
+          ucc_log(#type_ "\n"); \
           struct lexeme lex = { \
             .type = type_, \
             .raw = stream->peek (0), \
@@ -247,8 +283,6 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
           list->append (copy_lexeme_into_heap (lex)); \
           break; \
         }
-        case '\n':
-          ucc_log("newline\n");
         case '\t':
         case '\v':
         case '\r':
@@ -256,6 +290,7 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
           stream->consume (1);
           break;
 
+        SINGLE_LEXEME_CASE(lexemes, '\n', stream, NewLine);
         SINGLE_LEXEME_CASE(lexemes, ';', stream, Semi);
         SINGLE_LEXEME_CASE(lexemes, '(', stream, LeftParen);
         SINGLE_LEXEME_CASE(lexemes, ')', stream, RightParen);

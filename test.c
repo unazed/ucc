@@ -1,5 +1,5 @@
 int
 main (void)
 {
-  return 123ulniggabitch + 0;
+  return 0128.5lu + 0;
 }
