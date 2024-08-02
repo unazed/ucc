@@ -1,5 +1,8 @@
 int
 main (void)
 {
-  return 0x123ull;
+  //
+  unsigned long long x = 5ull;
+  /*                         */
+  return 0x123llu + 067l;
 }

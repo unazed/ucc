@@ -1,9 +1,12 @@
 #include "common.h"
+#include "grammar.h"
+#include "thunk.h"
 #include "tokenizer.h"
 
 #include <assert.h>
 #include <errno.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 #define copy_lexeme_into_heap(src) \
   ({ \
@@ -42,7 +45,7 @@ is_lex_sep (char c)
 bool
 is_identifier (char c)
 {
-  return isalpha (c) || c == '$' || c == '_';
+  return isalnum (c) || c == '$' || c == '_';
 }
 
 impln(bytestream_t)
@@ -127,15 +130,21 @@ consume_integer_suffix (struct lexeme* constant,
       ucc_error("invalid suffix for integer '%.*s'\n",
                 constant->length + suffix_length, constant->raw);
     }
-  ucc_log ("lexed number with suffix: '%.*s'\n", suffix_length, start_suffix);
+  ucc_log ("Number(%.*s) [suffix: '%.*s']\n", constant->length,
+           stream->peek (0), suffix_length, start_suffix);
   stream->consume (constant->length + suffix_length);
   return copy_lexeme_into_heap(*constant);
 }
 
 struct lexeme*
-consume_floating_number (impln(bytestream_t) stream, bool is_hex)
+consume_hex_floating_number (impln(bytestream_t) stream)
 {
-  ucc_log ("%s", is_hex? "lexing hexadecimal floating point\n": "lexing regular float\n");
+  __builtin_unimplemented ();
+}
+
+struct lexeme*
+consume_floating_number (impln(bytestream_t) stream)
+{
   __builtin_unimplemented ();
 }
 
@@ -155,11 +164,9 @@ consume_hexadecimal_number (impln(bytestream_t) stream)
     hex.length++;
 
   if (current && *current == '.')
-    return consume_floating_number (stream, true);  // :(
+    return consume_hex_floating_number (stream);  // :(
   if (current && isalpha (*current))
     return consume_integer_suffix (&hex, stream);
-
-  ucc_log ("lexed hexadecimal: '%.*s'\n", hex.length, stream->peek (0));
 
   stream->consume (hex.length);
   return copy_lexeme_into_heap (hex);
@@ -196,10 +203,10 @@ consume_octal_number (impln(bytestream_t) stream)
        * on GCC
        */
       if (current == NULL || *current != '.')
-        ucc_error("invalid digit in octal '%.*s'\n", octal.length,
+        ucc_error("invalid digit in octal '%.*s'\n", (int)octal.length,
                   stream->peek (0));
       else
-        return consume_floating_number (stream, false);
+        return consume_floating_number (stream);
     }
 
   if (current && isalpha (*current))
@@ -220,7 +227,7 @@ consume_number (impln(bytestream_t) stream)
   if (*current == '0' && (next != NULL && isdigit (*next)))
     return consume_octal_number (stream);
   if (*current == '.' || (next != NULL && *next == '.'))
-    return consume_floating_number (stream, false);
+    return consume_floating_number (stream);
   
   struct lexeme decimal_constant = {
     .length = 0,
@@ -234,10 +241,10 @@ consume_number (impln(bytestream_t) stream)
     if (!isdigit (*current))
     {
       if (*current == '.')
-        return consume_floating_number (stream, false);
-      if (isspace (*current) || *current == ';')
-        break;
-      return consume_integer_suffix (&decimal_constant, stream);
+        return consume_floating_number (stream);
+      if (isalpha (*current))
+        return consume_integer_suffix (&decimal_constant, stream);
+      break;
     }
     decimal_constant.length++;
   }
@@ -246,14 +253,180 @@ consume_number (impln(bytestream_t) stream)
   return copy_lexeme_into_heap(decimal_constant);
 }
 
+struct strchr_suffix
+{
+  enum strchr_encoding encoding;
+  bool is_raw;
+};
+
+struct lexeme*
+consume_comment (impln(bytestream_t) stream)
+{
+  char *current = stream->peek (0),
+       *next = stream->peek (1);
+
+  struct lexeme lex = {
+    .type = BlockComment,
+    .raw = stream->peek (0),
+    .length = 2
+  };
+
+  if (*next == '/')
+  {
+    stream->consume (2);
+    lex.length += stream->consume_until ("\n");
+    ucc_log("BlockComment(%zu bytes)\n", lex.length);
+    return copy_lexeme_into_heap(lex);
+  }
+
+  /* assume multiline comment */
+  while ((current = stream->peek (lex.length)) != NULL)
+  {
+    next = stream->peek (++lex.length);
+    if (*current == '*' && *next == '/')
+      {
+        lex.length++;
+        break;
+      }
+  }
+
+  if (current == NULL)
+  {
+    ucc_error("unterminated comment");
+    return NULL;
+  }
+
+  ucc_log("MultiComment(%zu bytes)\n", lex.length);
+  stream->consume (lex.length);
+  return copy_lexeme_into_heap (lex);
+}
+
+struct lexeme*
+consume_string (impln(bytestream_t) stream, struct strchr_suffix* suffix)
+{
+  if (suffix != NULL && suffix->encoding != Ordinary)
+    {
+      switch (suffix->encoding)
+      {
+        case Utf8Encoding:
+          ucc_log("string with Utf8Encoding\n");
+          break;
+        case Utf16Encoding:
+          ucc_log("string with Utf16Encoding\n");
+          break;
+        case Utf32Encoding:
+          ucc_log("string with Utf32Encoding\n");
+          break;
+        case WideEncoding:
+          ucc_log("string with WideEncoding\n");
+          break;
+      }
+      __builtin_unimplemented ();
+    }
+  __builtin_unimplemented ();
+}
+
+struct lexeme*
+consume_character (impln(bytestream_t) stream, struct strchr_suffix* suffix)
+{
+  if (suffix != NULL && suffix->encoding != Ordinary)
+    {
+      switch (suffix->encoding)
+      {
+        case Utf16Encoding:
+          ucc_log("character with Utf16Encoding\n");
+          break;
+        case Utf32Encoding:
+          ucc_log("character with Utf32Encoding\n");
+          break;
+        case WideEncoding:
+          ucc_log("character with WideEncoding\n");
+          break;
+      }
+      __builtin_unimplemented ();
+    }
+  __builtin_unimplemented ();
+}
+
+struct strchr_suffix
+maybe_get_strchar_encoding (impln(bytestream_t) stream, size_t length,
+                            bool is_char)
+{
+  char *current = stream->peek (0),
+       *next = stream->peek (0);
+  struct strchr_suffix suffix = {
+    .encoding = Ordinary,
+    .is_raw = false
+  };
+
+  if (is_char)
+    {
+      if (length != 1)
+        return suffix;
+      if (*current == 'L')
+        suffix.encoding = WideEncoding;
+      else if (*current == 'u')
+        suffix.encoding = Utf16Encoding;
+      else if (*current == 'U')
+        suffix.encoding = Utf32Encoding;
+      return suffix;
+    }
+
+  size_t index = 0;
+  if (strchr ("uULR", *current) == NULL)
+    return suffix;
+
+  switch (*current)
+  {
+    case 'u':
+      suffix.encoding = Utf16Encoding;
+      index++;
+      if (next && *next == '8')
+        {
+          suffix.encoding = Utf8Encoding;
+          index++;
+        }
+      break;
+    case 'U':
+      suffix.encoding = Utf32Encoding;
+      index++;
+      break;
+    case 'L':
+      suffix.encoding = WideEncoding;
+      index++;
+      break;
+    case 'R':
+      suffix.is_raw = true;
+      return suffix;
+  }
+
+  next = stream->peek (index);
+  if (next && *next == 'R')
+    suffix.is_raw = true;
+
+  return suffix;
+}
+
 struct lexeme*
 consume_identifier (impln(bytestream_t) stream)
 {
-  size_t length = 0;
+  size_t length = 1;
   char* current = stream->peek (length);
 
   while (current && is_identifier (*current))
     current = stream->peek (++length);
+
+  if (current && (*current == '\'' || *current == '"'))
+  {
+    auto suffix = maybe_get_strchar_encoding(stream, length,
+                                             *current == '\'');
+    if (suffix.encoding != Ordinary)
+    {
+      if (*current == '"')
+        return consume_string (stream, &suffix);
+      return consume_character (stream, &suffix);
+    }
+  }
 
   struct lexeme ident = {
     .type = Identifier,
@@ -261,7 +434,7 @@ consume_identifier (impln(bytestream_t) stream)
     .raw = stream->peek (0)
   };
 
-  ucc_log("Identifier(%.*s): %zu\n", length, ident.raw, length);
+  ucc_log("Identifier(%.*s)\n", length, ident.raw);
 
   stream->consume (length);
   return copy_lexeme_into_heap(ident);
@@ -274,34 +447,37 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
   auto stream = unit->io.stream;
   auto lexemes = new_object(list_t);
 
-  char *chr, *next;
+  char *chr, *next, *next2;
   bool reject = false;
 
   while ((chr = stream->peek (0)) != NULL)
     {
       next = stream->peek (1);
+      next2 = stream->peek (2);
+
       switch (*chr)
       {
-      #define SINGLE_LEXEME_CASE(list, c, stream, type) \
-          case c: consume_single_lexeme(list, stream, type); break;
-      #define BINARY_LEXEME_CASE(list, c, stream, type_) \
-        case c: \
-        { \
-          ucc_log(#type_ "\n"); \
-          struct lexeme lex = { \
-            .type = type_, \
-            .raw = stream->peek (0), \
-            .length = 1 \
-          }; \
-          if (next && *next == '=') \
-            { \
-              lex.type = type_ ## Assign; \
-              lex.length++; \
-            } \
-          stream->consume (lex.length); \
-          list->append (copy_lexeme_into_heap (lex)); \
-          break; \
-        }
+#define SINGLE_LEXEME_CASE(c, type) \
+    case c: consume_single_lexeme(lexemes, stream, type); break;
+
+#define MULTI_LEXEME_CASE(c1, c2, type_, suffix) \
+  case c1: \
+  { \
+    ucc_log(#type_ "\n"); \
+    struct lexeme lex = { \
+      .type = type_, \
+      .raw = stream->peek (0), \
+      .length = 1 \
+    }; \
+    if (next && *next == c2) \
+      { \
+        lex.type = type_ ## suffix; \
+        lex.length++; \
+      } \
+    lexemes->append (copy_lexeme_into_heap (lex)); \
+    stream->consume (lex.length); \
+    break; \
+  }
         case '\t':
         case '\v':
         case '\r':
@@ -309,24 +485,123 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
           stream->consume (1);
           break;
 
-        SINGLE_LEXEME_CASE(lexemes, '\n', stream, NewLine);
-        SINGLE_LEXEME_CASE(lexemes, ';', stream, Semi);
-        SINGLE_LEXEME_CASE(lexemes, '(', stream, LeftParen);
-        SINGLE_LEXEME_CASE(lexemes, ')', stream, RightParen);
-        SINGLE_LEXEME_CASE(lexemes, '{', stream, LeftBrace);
-        SINGLE_LEXEME_CASE(lexemes, '}', stream, RightBrace);
-        SINGLE_LEXEME_CASE(lexemes, '[', stream, LeftBracket);
-        SINGLE_LEXEME_CASE(lexemes, ']', stream, RightBracket);
-        SINGLE_LEXEME_CASE(lexemes, ',', stream, Comma);
-        SINGLE_LEXEME_CASE(lexemes, ':', stream, Colon);
+        SINGLE_LEXEME_CASE('\n', NewLine);
+        SINGLE_LEXEME_CASE(';', Semi);
+        SINGLE_LEXEME_CASE('(', LeftParen);
+        SINGLE_LEXEME_CASE(')', RightParen);
+        SINGLE_LEXEME_CASE('{', LeftBrace);
+        SINGLE_LEXEME_CASE('}', RightBrace);
+        SINGLE_LEXEME_CASE('[', LeftBracket);
+        SINGLE_LEXEME_CASE(']', RightBracket);
+        SINGLE_LEXEME_CASE(',', Comma);
+        SINGLE_LEXEME_CASE(':', Colon);
+        SINGLE_LEXEME_CASE('~', Tilde);
 
-        BINARY_LEXEME_CASE(lexemes, '+', stream, Plus);
-        BINARY_LEXEME_CASE(lexemes, '*', stream, Star);
-        BINARY_LEXEME_CASE(lexemes, '-', stream, Minus);
-        BINARY_LEXEME_CASE(lexemes, '/', stream, Div);
-        BINARY_LEXEME_CASE(lexemes, '%', stream, Mod);
-        BINARY_LEXEME_CASE(lexemes, '^', stream, Caret);
+        MULTI_LEXEME_CASE('%', '=', Mod, Assign);
+        MULTI_LEXEME_CASE('^', '=', Caret, Assign);
+        MULTI_LEXEME_CASE('&', '=', And, Assign)
+        MULTI_LEXEME_CASE('*', '=', Star, Assign);
+        MULTI_LEXEME_CASE('=', '=', Assign, Equal);
 
+        case '/':
+        {
+          struct lexeme lex = {
+            .type = Div,
+            .length = 1,
+            .raw = stream->peek (0)
+          };
+          if (next && (*next == '='))
+            {
+              lex.type = DivAssign;
+              lex.length++;
+            }
+          else if (next && (*next == '*' || *next == '/'))
+            {
+              struct lexeme* lex = consume_comment (stream);
+              if (lex == NULL)
+              {
+                reject = true;
+                break;
+              }
+              if (thunk_public_attr(self, flags).tokenize_comments)
+                lexemes->append (lex);
+              break;
+            }
+          lexemes->append (copy_lexeme_into_heap (lex));
+          stream->consume (lex.length);
+          break;
+        }
+        case '"':
+          try_append_lexeme(lexemes, consume_string (stream, NULL));
+          break;
+        case '\'':
+          try_append_lexeme(lexemes, consume_character (stream, NULL));
+          break;
+        case '+':
+        case '-':
+        {
+          struct lexeme lex = {
+            .type = (*chr == '+')? Plus: Minus,
+            .raw = stream->peek (0),
+            .length = 1
+          };
+          if (next && *next == *chr)
+            {
+              ucc_log("%screment\n", (*chr == '+')? "In": "De");
+              lex.type = (*chr == '+')? PlusPlus: MinusMinus;
+              lex.length++;
+            }
+          else if (next && *next == '=')
+            {
+              ucc_log("in place %s assign\n",
+                      (*chr == '+')? "additive": "subtractive");
+              lex.type = (*chr == '+')? PlusAssign: MinusAssign;
+              lex.length++;
+            }
+          else if (next && *chr == '-' && *next == '>')
+            {
+              ucc_log("Arrow\n");
+              lex.type = Arrow;
+              lex.length++;
+            }
+          lexemes->append (copy_lexeme_into_heap (lex));
+          stream->consume (lex.length);
+          break;
+        }
+        case '>':
+        case '<':
+        {
+          struct lexeme lex = {
+            .type = (*chr == '<')? Less: Greater, 
+            .raw = stream->peek (0),
+            .length = 1
+          };
+          if (next && *next == *chr)
+            {
+              lex.type = (*chr == '<')? LeftShift: RightShift;
+              lex.length++;
+              if (next2 && *next2 == '=')
+                {
+                  ucc_log("in place assign, %s bit-shift\n",
+                          (*chr == '<')? "left": "right");
+                  lex.type = (*chr == '<')? LeftShiftAssign: RightShiftAssign;
+                  lex.length++;
+                }
+              else
+                {
+                  ucc_log("%s bit-shift\n", (*chr == '<')? "Left": "Right");
+                }
+            }
+          else if (next && *next == '=')
+            {
+              ucc_log ("%s or equal to\n", (*chr == '<')? "Less": "Greater");
+              lex.type = (*chr == '<')? LessEqual: GreaterEqual;
+              lex.length++;
+            }
+          lexemes->append (copy_lexeme_into_heap (lex));
+          stream->consume (lex.length);
+          break;
+        }
         case '.':
           if (next && !isdigit (*next))
             {
@@ -369,13 +644,12 @@ tokenize_translation_unit (thunk_self_ty(tokenizer_t) self,
     }
   list_for_each_entry(lexemes, lexeme)
   {
-    ucc_log("freeing lexeme token\n");
     free (lexeme->val);
   }
   free_object (lexemes);
 }
 
-declare_thunk_method(tokenizer_t, tokenize) (thunk_self_ty(tokenizer_t) self)
+declare_thunk_method(tokenizer_t, tokenize)(thunk_self_ty(tokenizer_t) self)
 {
   list_for_each_entry(
     thunk_public_attr(self, context).translation_units, iter)
@@ -385,6 +659,15 @@ declare_thunk_method(tokenizer_t, tokenize) (thunk_self_ty(tokenizer_t) self)
     tokenize_translation_unit (self, unit);
   }
   return true;
+}
+
+declare_thunk_method(tokenizer_t, set_flags)(thunk_self_ty(tokenizer_t) self,
+                                            struct compiler_flags* flags)
+{
+  ucc_log("setting compiler flags (tokenize-comments=%s)\n",
+          flags->tokenize_comments? "yes": "no");
+  memcpy (&thunk_public_attr(self, flags), flags,
+          sizeof (struct compiler_flags));
 }
 
 declare_thunk_initializer(tokenizer_t)(thunk_self_ty(tokenizer_t) self)

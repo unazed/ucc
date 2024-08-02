@@ -13,6 +13,8 @@ enum lexeme_ty
   IntegerConstant,
   FloatingConstant,
   CharacterConstant,
+  StringConstant,
+  BlockComment, MultiComment, MultiCommentEnd,
   LeftParen, RightParen,
   LeftBracket, RightBracket,
   LeftBrace, RightBrace,
@@ -34,9 +36,33 @@ enum lexeme_ty
   Not, NotEqual,
   Question,
   Tilde,
-  Assign, Equal,
+  Assign, AssignEqual,
   Less, LessEqual, LeftShift, LeftShiftAssign,
   Greater, GreaterEqual, RightShift, RightShiftAssign,
+};
+
+enum strchr_encoding
+{
+  Ordinary,
+  WideEncoding,  // L
+  Utf8Encoding,  // u8, string only
+  Utf16Encoding, // u
+  Utf32Encoding  // U
+};
+
+struct ctx_string_constant
+{
+  enum strchr_encoding encoding;
+  bool is_raw;
+  const char* val;
+  size_t length;
+};
+
+struct ctx_character_constant
+{
+  enum strchr_encoding encoding;
+  char val;
+  size_t length;
 };
 
 struct ctx_floating_constant
@@ -78,6 +104,8 @@ struct lexeme
   {
     struct ctx_integer_constant integer_constant;
     struct ctx_floating_constant floating_constant;
+    struct ctx_string_constant string_constant;
+    struct ctx_character_constant character_constant;
   } ctx_for;
   const char* raw;
   size_t length;
