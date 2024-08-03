@@ -6,6 +6,8 @@
 size_t
 clamp_to_bounds(thunk_self_ty(bytestream_t) self, size_t n, size_t offs)
 {
+  if (n == 0)
+    return 0;
   return clamp (thunk_public_attr(self, pos),
                 thunk_public_attr(self, length) - offs,
                 thunk_public_attr(self, pos) + n)
@@ -15,12 +17,13 @@ clamp_to_bounds(thunk_self_ty(bytestream_t) self, size_t n, size_t offs)
 declare_thunk_method(bytestream_t, peek)(thunk_self_ty(bytestream_t) self,
                                          size_t lookahead)
 {
-  if (thunk_public_attr(self, pos) == thunk_public_attr(self, length))
+  if (thunk_public_attr(self, pos) >= thunk_public_attr(self, length))
     return NULL;
-  lookahead = clamp_to_bounds(self, lookahead, 1);
-  return (char *)thunk_public_attr(self, data)
-         + (thunk_public_attr(self, pos) + lookahead)
-           * thunk_public_attr(self, size);
+  size_t byte_offs = (thunk_public_attr(self, pos) + lookahead)
+    * thunk_public_attr(self, size);
+  if (byte_offs >= thunk_public_attr(self, length))
+    return NULL;
+  return (char *)thunk_public_attr(self, data) + byte_offs;
 }
 
 declare_thunk_method(bytestream_t, consume)(thunk_self_ty(bytestream_t) self,

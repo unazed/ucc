@@ -7,8 +7,6 @@
  * Seed:      15204829933039064635
  */
 
-#include "csmith.h"
-
 
 static long __undefined;
 
@@ -35,8 +33,8 @@ struct S1 {
    signed f5 : 23;
 };
 
-#pragma pack(push)
-#pragma pack(1)
+
+
 struct S2 {
    volatile signed f0 : 4;
    volatile unsigned f1 : 20;
@@ -48,7 +46,7 @@ struct S2 {
    unsigned f7 : 30;
    unsigned f8 : 21;
 };
-#pragma pack(pop)
+
 
 union U3 {
    uint32_t  f0;

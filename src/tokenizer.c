@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #define copy_lexeme_into_heap(src) \
   ({ \
@@ -46,6 +47,17 @@ bool
 is_identifier (char c)
 {
   return isalnum (c) || c == '$' || c == '_';
+}
+
+char*
+quoted_strlen (impln(bytestream_t) stream, char quote)
+{
+  size_t length = 1;
+  char* next = stream->peek (0);
+  while (next != NULL && (next = stream->peek (length++)))
+    if (*next == quote)
+      return next;
+  return NULL;
 }
 
 impln(bytestream_t)
@@ -253,9 +265,10 @@ consume_number (impln(bytestream_t) stream)
   return copy_lexeme_into_heap(decimal_constant);
 }
 
-struct strchr_suffix
+struct strchr_prefix
 {
   enum strchr_encoding encoding;
+  size_t length;
   bool is_raw;
 };
 
@@ -302,59 +315,44 @@ consume_comment (impln(bytestream_t) stream)
 }
 
 struct lexeme*
-consume_string (impln(bytestream_t) stream, struct strchr_suffix* suffix)
+consume_string (impln(bytestream_t) stream, struct strchr_prefix* prefix)
 {
-  if (suffix != NULL && suffix->encoding != Ordinary)
+  if (stream->peek (1) == NULL)
+    goto err;
+
+  char quote_ty = *(char *)stream->peek (0);
+  char *start = stream->peek (0),
+       *end = quoted_strlen (stream, quote_ty);
+
+  if (end == NULL)
     {
-      switch (suffix->encoding)
-      {
-        case Utf8Encoding:
-          ucc_log("string with Utf8Encoding\n");
-          break;
-        case Utf16Encoding:
-          ucc_log("string with Utf16Encoding\n");
-          break;
-        case Utf32Encoding:
-          ucc_log("string with Utf32Encoding\n");
-          break;
-        case WideEncoding:
-          ucc_log("string with WideEncoding\n");
-          break;
-      }
-      __builtin_unimplemented ();
+  err:
+      ucc_error ("unterminated string/character literal\n");
+      return NULL;
     }
-  __builtin_unimplemented ();
+
+  size_t length = end - start + 1;
+
+  struct lexeme lex = {
+    .type = (quote_ty == '"')? StringConstant: CharacterConstant,
+    .length = length - 2,
+    .ctx_for.character_constant.encoding
+      = (prefix != NULL)? prefix->encoding: Ordinary,
+    .raw = start + 1
+  };
+  ucc_log("String/Character(%zu bytes): %.*s\n",
+          length, length, stream->peek (0));
+  stream->consume (length);
+  return copy_lexeme_into_heap (lex);
 }
 
-struct lexeme*
-consume_character (impln(bytestream_t) stream, struct strchr_suffix* suffix)
-{
-  if (suffix != NULL && suffix->encoding != Ordinary)
-    {
-      switch (suffix->encoding)
-      {
-        case Utf16Encoding:
-          ucc_log("character with Utf16Encoding\n");
-          break;
-        case Utf32Encoding:
-          ucc_log("character with Utf32Encoding\n");
-          break;
-        case WideEncoding:
-          ucc_log("character with WideEncoding\n");
-          break;
-      }
-      __builtin_unimplemented ();
-    }
-  __builtin_unimplemented ();
-}
-
-struct strchr_suffix
+struct strchr_prefix
 maybe_get_strchar_encoding (impln(bytestream_t) stream, size_t length,
                             bool is_char)
 {
   char *current = stream->peek (0),
        *next = stream->peek (0);
-  struct strchr_suffix suffix = {
+  struct strchr_prefix prefix = {
     .encoding = Ordinary,
     .is_raw = false
   };
@@ -362,49 +360,55 @@ maybe_get_strchar_encoding (impln(bytestream_t) stream, size_t length,
   if (is_char)
     {
       if (length != 1)
-        return suffix;
+        return prefix;
       if (*current == 'L')
-        suffix.encoding = WideEncoding;
+        prefix.encoding = WideEncoding;
       else if (*current == 'u')
-        suffix.encoding = Utf16Encoding;
+        prefix.encoding = Utf16Encoding;
       else if (*current == 'U')
-        suffix.encoding = Utf32Encoding;
-      return suffix;
+        prefix.encoding = Utf32Encoding;
+      prefix.length = 1;
+      return prefix;
     }
 
-  size_t index = 0;
   if (strchr ("uULR", *current) == NULL)
-    return suffix;
+    return prefix;
+
+  size_t index = 0;
+  prefix.length++;
 
   switch (*current)
   {
     case 'u':
-      suffix.encoding = Utf16Encoding;
+      prefix.encoding = Utf16Encoding;
       index++;
       if (next && *next == '8')
         {
-          suffix.encoding = Utf8Encoding;
+          prefix.encoding = Utf8Encoding;
           index++;
         }
       break;
     case 'U':
-      suffix.encoding = Utf32Encoding;
+      prefix.encoding = Utf32Encoding;
       index++;
       break;
     case 'L':
-      suffix.encoding = WideEncoding;
+      prefix.encoding = WideEncoding;
       index++;
       break;
     case 'R':
-      suffix.is_raw = true;
-      return suffix;
+      prefix.is_raw = true;
+      return prefix;
   }
 
   next = stream->peek (index);
   if (next && *next == 'R')
-    suffix.is_raw = true;
+    {
+      prefix.is_raw = true;
+      prefix.length++;
+    }
 
-  return suffix;
+  return prefix;
 }
 
 struct lexeme*
@@ -422,9 +426,8 @@ consume_identifier (impln(bytestream_t) stream)
                                              *current == '\'');
     if (suffix.encoding != Ordinary)
     {
-      if (*current == '"')
-        return consume_string (stream, &suffix);
-      return consume_character (stream, &suffix);
+      stream->consume (suffix.length);
+      return consume_string (stream, &suffix);
     }
   }
 
@@ -503,6 +506,43 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
         MULTI_LEXEME_CASE('*', '=', Star, Assign);
         MULTI_LEXEME_CASE('=', '=', Assign, Equal);
 
+        case '!':
+        {
+          struct lexeme lex = {
+            .type = Not,
+            .raw = stream->peek (0),
+            .length = 1
+          };
+          if (next && (*next == '='))
+            {
+              lex.type = NotEqual;
+              lex.length++;
+            }
+          lexemes->append (copy_lexeme_into_heap(lex));
+          stream->consume (lex.length);
+          break;
+        }
+        case '|':
+        {
+          struct lexeme lex = {
+            .type = Or,
+            .raw = stream->peek (0),
+            .length = 1
+          };
+          if (next && (*next == '='))
+            {
+              lex.type = OrAssign;
+              lex.length++;
+            }
+          else if (next && (*next == '|'))
+            {
+              lex.type = OrOr;
+              lex.length++;
+            }
+          lexemes->append (copy_lexeme_into_heap(lex));
+          stream->consume (lex.length);
+          break;
+        }
         case '/':
         {
           struct lexeme lex = {
@@ -532,10 +572,8 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
           break;
         }
         case '"':
-          try_append_lexeme(lexemes, consume_string (stream, NULL));
-          break;
         case '\'':
-          try_append_lexeme(lexemes, consume_character (stream, NULL));
+          try_append_lexeme(lexemes, consume_string (stream, NULL));
           break;
         case '+':
         case '-':
@@ -619,15 +657,16 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
           try_append_lexeme(lexemes, consume_identifier (stream));
           break;
         default:
-          ucc_error ("unknown lexing token: '%c'\n", *chr);
+          ucc_error("unknown lexing token: '%c'\n", *chr);
           exit (EXIT_FAILURE);
       }
     }
   if (reject)
   {
-    ucc_error ("aborting tokenizing process due to lexical errors\n");
+    ucc_error("aborting tokenizing process due to lexical errors\n");
     exit (EXIT_FAILURE);
   }
+  ucc_log("parsed %zu tokens\n", thunk_public_attr (lexemes, length));
   return lexemes;
 }
 
