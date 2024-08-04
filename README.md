@@ -19,8 +19,9 @@ Multiple compilation units are supported.
 
 1. Tokenization
    - Lexing
-     - **TODO:** Raw strings
-     - **TODO:** Strings w/ encodings (UTF8, UTF16, UTF32 and wide encodings)
+     - Raw strings ([commit](https://github.com/unazed/ucc/commit/d6d57bae96cb86b295fa2e16a4465b8c5e579dc9))
+     - Strings w/ encodings (UTF8, UTF16, UTF32 and wide encodings) ([commit](https://github.com/unazed/ucc/commit/d6d57bae96cb86b295fa2e16a4465b8c5e579dc9))
+       - Octal/hexadecimal/universal escape sequences
      - **TODO:** Floating point numbers (and hexadecimal floats)
      - Decimal numbers ([commit](https://github.com/unazed/ucc/commit/38d2ea53cfedbc53300dbcc8fabea5aa06744cad)),
        octal numbers ([commit](https://github.com/unazed/ucc/commit/92e9c9f5b7652e3e9799bc5a96b5f738bc924675)),
