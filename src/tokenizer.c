@@ -27,7 +27,6 @@
 
 #define consume_single_lexeme(list, stream, type_) \
   { \
-    ucc_log (#type_ "\n"); \
     struct lexeme lex = { \
       .type = type_, \
       .raw = (stream)->peek (0), \
@@ -412,9 +411,8 @@ clone_escaped_sequence (char* start, size_t length, bool is_raw)
 {
   if (is_raw)
     return clone_raw_escaped_sequence (start, length);
-  char* alloc = calloc (length, sizeof (char));
+  char* alloc = calloc (length + 1, sizeof (char));
   size_t dst_i = 0;
-  printf("length %zu\n", length);
   for (size_t i = 0; i < length; ++i)
   {
     char src_char = start[i];
@@ -510,8 +508,10 @@ consume_string (impln(bytestream_t) stream, struct strchr_prefix* prefix)
                                   lex.ctx_for.string_constant.is_raw);
       char* escaped = lex.ctx_for.string_constant.escaped;
       if (escaped != NULL)
+      {
         ucc_log("EscapedString(%zu bytes): '%.*s'\n",
                 strlen (escaped), strlen (escaped), escaped);
+      }
     }
 
   ucc_log("%s(%zu bytes): %.*s\n",
@@ -743,6 +743,8 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
                 break;
               if (thunk_public_attr(self, flags).tokenize_comments)
                 lexemes->append (lex);
+              else
+                free (lex);
               break;
             }
           lexemes->append (copy_lexeme_into_heap (lex));

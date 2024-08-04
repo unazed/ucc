@@ -1,5 +1,5 @@
 int
 main (void)
 {
-  char* a = "\nhello";
+  char* a = "1";
 }
