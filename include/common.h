@@ -15,6 +15,8 @@
 #define CFGRED "\e[0;31m"
 #define CFGBLUE "\e[0;34m"
 #define CFGBOLDWHITE "\e[1;37m"
+#define CFGBOLDBLACK "\e[0;30m"
+#define CFGBOLDRED "\e[1;31m"
 
 #define max(a,b) \
 ({ \

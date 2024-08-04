@@ -2,6 +2,7 @@
 #include "grammar.h"
 #include "thunk.h"
 #include "tokenizer.h"
+#include "richloc.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -21,8 +22,6 @@
     auto val = val_; \
     if (val != NULL) \
       (list)->append (val); \
-    else \
-      reject = true; \
   }
 
 #define consume_single_lexeme(list, stream, type_) \
@@ -37,6 +36,8 @@
     (stream)->consume (1); \
   }
 
+static impln(richloc_ctx_t) richloc_ctx;
+
 bool
 is_lex_sep (char c)
 {
@@ -49,15 +50,21 @@ is_identifier (char c)
   return isalnum (c) || c == '$' || c == '_';
 }
 
-char*
-quoted_strlen (impln(bytestream_t) stream, char quote)
+bool
+quoted_strlen (impln(bytestream_t) stream, char** end, char quote)
 {
   size_t length = 1;
-  char* next = stream->peek (0);
-  while (next != NULL && (next = stream->peek (length++)))
-    if (*next == quote)
-      return next;
-  return NULL;
+  char *current = stream->peek (0);
+  while (current != NULL && (current = stream->peek (length++)))
+    {
+      if (*current == quote)
+        {
+          *end = current;
+          return true;
+        }
+    }
+  *end = stream->peek (length - 2);
+  return false;
 }
 
 impln(bytestream_t)
@@ -94,8 +101,8 @@ declare_thunk_method(tokenizer_t, load_file) (
   fclose (fp);
 
   tru->io.stream = new_bytestream (data, FILE_MEMBSIZE, file_size);
-  ucc_log("%s: created bytestream (%zu bytes) @ %p\n", path,
-          nread, tru->io.stream);
+  thunk_public_attr(tru->io.stream, path) = path;
+  ucc_log("%s: created bytestream (%zu bytes)\n", path, nread);
   thunk_public_attr(self, context).translation_units->append (tru);
   return thunk_result_t(tokenizer_t, load_file, true);
 }
@@ -139,8 +146,8 @@ consume_integer_suffix (struct lexeme* constant,
     }
   else
     {
-      ucc_error("invalid suffix for integer '%.*s'\n",
-                constant->length + suffix_length, constant->raw);
+      richloc_ctx->push_error ("invalid suffix for integer",
+                               constant->length, suffix_length);
     }
   ucc_log ("Number(%.*s) [suffix: '%.*s']\n", constant->length,
            stream->peek (0), suffix_length, start_suffix);
@@ -215,8 +222,9 @@ consume_octal_number (impln(bytestream_t) stream)
        * on GCC
        */
       if (current == NULL || *current != '.')
-        ucc_error("invalid digit in octal '%.*s'\n", (int)octal.length,
-                  stream->peek (0));
+      {
+        richloc_ctx->push_error ("invalid digit in octal", 0, octal.length);
+      }
       else
         return consume_floating_number (stream);
     }
@@ -305,7 +313,8 @@ consume_comment (impln(bytestream_t) stream)
 
   if (current == NULL)
   {
-    ucc_error("unterminated comment");
+    richloc_ctx->push_error ("unterminated comment", 0, lex.length);
+    stream->consume (lex.length);
     return NULL;
   }
 
@@ -314,20 +323,29 @@ consume_comment (impln(bytestream_t) stream)
   return copy_lexeme_into_heap (lex);
 }
 
+char*
+clone_escaped_sequence (char* start, size_t length, bool is_raw)
+{
+  __builtin_unimplemented();
+}
+
 struct lexeme*
 consume_string (impln(bytestream_t) stream, struct strchr_prefix* prefix)
 {
   if (stream->peek (1) == NULL)
-    goto err;
+  {
+    richloc_ctx->push_error ("unterminated string/character literal", 0, 1);
+    return NULL;
+  }
 
   char quote_ty = *(char *)stream->peek (0);
-  char *start = stream->peek (0),
-       *end = quoted_strlen (stream, quote_ty);
+  char *start = stream->peek (0), *end;
 
-  if (end == NULL)
+  if (!quoted_strlen(stream, &end, quote_ty))
     {
-  err:
-      ucc_error ("unterminated string/character literal\n");
+      richloc_ctx->push_error ("unterminated string/character literal", 0,
+                               end - start + 1);
+      stream->consume (end - start +  1);
       return NULL;
     }
 
@@ -340,7 +358,25 @@ consume_string (impln(bytestream_t) stream, struct strchr_prefix* prefix)
       = (prefix != NULL)? prefix->encoding: Ordinary,
     .raw = start + 1
   };
-  ucc_log("String/Character(%zu bytes): %.*s\n",
+
+  if (quote_ty == '\'')
+    {
+      lex.ctx_for.character_constant.encoding
+        = (prefix != NULL)? prefix->encoding: Ordinary;
+      lex.ctx_for.character_constant.escaped
+        = clone_escaped_sequence (start + 1, length - 2, false);
+    }
+  else
+    {
+      lex.ctx_for.string_constant.encoding
+        = (prefix != NULL)? prefix->encoding: Ordinary;
+      lex.ctx_for.string_constant.escaped
+        = clone_escaped_sequence (start + 1, length - 2,
+                                  lex.ctx_for.string_constant.is_raw);
+    }
+
+  ucc_log("%s(%zu bytes): %.*s\n",
+          (quote_ty == '\'')? "Character": "String",
           length, length, stream->peek (0));
   stream->consume (length);
   return copy_lexeme_into_heap (lex);
@@ -447,19 +483,6 @@ impln(list_t)
 lex_translation_unit (thunk_self_ty(tokenizer_t) self,
                       struct translation_unit* unit)
 {
-  auto stream = unit->io.stream;
-  auto lexemes = new_object(list_t);
-
-  char *chr, *next, *next2;
-  bool reject = false;
-
-  while ((chr = stream->peek (0)) != NULL)
-    {
-      next = stream->peek (1);
-      next2 = stream->peek (2);
-
-      switch (*chr)
-      {
 #define SINGLE_LEXEME_CASE(c, type) \
     case c: consume_single_lexeme(lexemes, stream, type); break;
 
@@ -481,6 +504,20 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
     stream->consume (lex.length); \
     break; \
   }
+
+  auto stream = unit->io.stream;
+  auto lexemes = new_object(list_t);
+  richloc_ctx->set_stream (stream);
+
+  char *chr, *next, *next2;
+
+  while ((chr = stream->peek (0)) != NULL)
+    {
+      next = stream->peek (1);
+      next2 = stream->peek (2);
+
+      switch (*chr)
+      {
         case '\t':
         case '\v':
         case '\r':
@@ -506,6 +543,10 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
         MULTI_LEXEME_CASE('*', '=', Star, Assign);
         MULTI_LEXEME_CASE('=', '=', Assign, Equal);
 
+        case '#':
+        {
+          __builtin_unimplemented();
+        }
         case '!':
         {
           struct lexeme lex = {
@@ -559,10 +600,7 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
             {
               struct lexeme* lex = consume_comment (stream);
               if (lex == NULL)
-              {
-                reject = true;
                 break;
-              }
               if (thunk_public_attr(self, flags).tokenize_comments)
                 lexemes->append (lex);
               break;
@@ -661,8 +699,9 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
           exit (EXIT_FAILURE);
       }
     }
-  if (reject)
+  if (richloc_ctx->has_errors ())
   {
+    richloc_ctx->show_errors ();
     ucc_error("aborting tokenizing process due to lexical errors\n");
     exit (EXIT_FAILURE);
   }
@@ -707,11 +746,13 @@ declare_thunk_method(tokenizer_t, set_flags)(thunk_self_ty(tokenizer_t) self,
           flags->tokenize_comments? "yes": "no");
   memcpy (&thunk_public_attr(self, flags), flags,
           sizeof (struct compiler_flags));
+  return true;
 }
 
 declare_thunk_initializer(tokenizer_t)(thunk_self_ty(tokenizer_t) self)
 {
   thunk_public_attr(self, context).translation_units = new_object(list_t);
+  richloc_ctx = new_object(richloc_ctx_t);
 }
 
 declare_thunk_finalizer(tokenizer_t)(thunk_self_ty(tokenizer_t) self)
@@ -728,4 +769,5 @@ declare_thunk_finalizer(tokenizer_t)(thunk_self_ty(tokenizer_t) self)
     free (tru);
   }
   free_object(thunk_public_attr(self, context).translation_units);
+  free_object(richloc_ctx);
 }

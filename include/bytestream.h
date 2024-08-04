@@ -14,9 +14,12 @@ define_thunk_method(bytestream_t, size_t, consume_until)(InArg char* accept);
 define_thunk_object(bytestream_t, {
   thunk_attr_public({
     void* data;
+    const char* path;
     size_t pos;
     size_t size;
     size_t length;
+    size_t line_no;
+    size_t line_offs;
   });
 
   thunk_attr_private({

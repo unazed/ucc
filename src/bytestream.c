@@ -1,5 +1,6 @@
 #include "bytestream.h"
 #include "common.h"
+#include "thunk.h"
 
 #include <string.h>
 
@@ -29,7 +30,21 @@ declare_thunk_method(bytestream_t, peek)(thunk_self_ty(bytestream_t) self,
 declare_thunk_method(bytestream_t, consume)(thunk_self_ty(bytestream_t) self,
                                             size_t n)
 {
-  thunk_public_attr(self, pos) += clamp_to_bounds(self, n, 0);
+  size_t clamped = clamp_to_bounds(self, n, 0),
+         pos = thunk_public_attr(self, pos);
+  for (size_t i = pos; i < pos + clamped; ++i)
+  {
+    if (((char *)thunk_public_attr(self, data))[i] == '\n')
+      {
+        thunk_public_attr(self, line_no)++;
+        thunk_public_attr(self, line_offs) = 0;
+      }
+    else
+      {
+        thunk_public_attr(self, line_offs)++;
+      }
+  }
+  thunk_public_attr(self, pos) += clamped;
   return n;
 }
 
@@ -68,6 +83,11 @@ declare_thunk_method(bytestream_t, is_eof)(thunk_self_ty(bytestream_t) self)
 declare_thunk_initializer(bytestream_t)(thunk_self_ty(bytestream_t) self)
 {
   thunk_public_attr(self, data) = NULL;
-  thunk_public_attr(self, pos) = thunk_public_attr(self, size)
-    = thunk_public_attr(self, length) = 0;
+  thunk_public_attr(self, pos)
+    = thunk_public_attr(self, size)
+    = thunk_public_attr(self, length)
+    = thunk_public_attr(self, line_offs)
+    = 0;
+
+  thunk_public_attr(self, line_no) = 1;
 }
