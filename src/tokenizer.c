@@ -1,5 +1,6 @@
 #include "common.h"
 #include "grammar.h"
+#include "list.h"
 #include "thunk.h"
 #include "tokenizer.h"
 #include "richloc.h"
@@ -51,10 +52,79 @@ is_identifier (char c)
 }
 
 bool
-quoted_strlen (impln(bytestream_t) stream, char** end, char quote)
+quoted_raw_strlen (impln(bytestream_t) stream, char** end, char quote)
 {
+  size_t prefix_length = 0, length = 0;
+  char* current = stream->peek (0);
+  while (current != NULL && (current = stream->peek (prefix_length + 1)))
+    {
+      length++;
+      if (*current == '(')
+        break;
+      if (!isalnum (*current))
+      {
+        if (isspace (*current))
+        {
+          richloc_ctx->push_error (
+              "whitespace/new-line in raw-string delimiter",
+              1, prefix_length);
+          return false;
+        }
+        richloc_ctx->push_error (
+            "non-alphanumeric character in raw-string delimiter",
+            length, 1);
+        return false;
+      }
+      prefix_length++;
+    }
+
+  if (current == NULL)
+    {
+      richloc_ctx->push_error ("expected prefix in raw-string", 0,
+                               length);
+      *end = stream->peek (prefix_length - 2);
+      return false;
+    }
+ 
+  char* prefix_start = stream->peek (1);
+  bool terminated = false;
+
+  while (current != NULL && (current = stream->peek (length)))
+  {
+    char* next = stream->peek (length + 1);
+    if (next != NULL && *current == ')'
+        && !strncmp (next, prefix_start, prefix_length)
+        && *(char *)stream->peek (length + prefix_length + 1) == quote)
+    {
+      length += prefix_length;
+      terminated = true;
+      break;
+    }
+    length++;
+  }
+
+  if (!terminated)
+    {
+      richloc_ctx->push_error ("unterminated raw-string", 0, length);
+      *end = stream->peek (length - 2);
+      return false;
+    }
+  ucc_log ("RawString(%zu bytes) with prefix '%.*s'\n",
+           length, prefix_length, prefix_start);
+  *end = stream->peek (length + 1);
+  return true;
+}
+
+bool
+quoted_strlen (impln(bytestream_t) stream, char** end, char quote,
+               bool is_raw)
+{
+  if (is_raw)
+    return quoted_raw_strlen (stream, end, quote);
+
   size_t length = 1;
-  char *current = stream->peek (0);
+  char *current = stream->peek (0),
+       *start = stream->peek (0);
   while (current != NULL && (current = stream->peek (length++)))
     {
       if (*current == quote)
@@ -63,6 +133,8 @@ quoted_strlen (impln(bytestream_t) stream, char** end, char quote)
           return true;
         }
     }
+  richloc_ctx->push_error ("unterminated string/character literal", 0,
+                           (char *)stream->peek (length - 2) - start + 1);
   *end = stream->peek (length - 2);
   return false;
 }
@@ -324,9 +396,68 @@ consume_comment (impln(bytestream_t) stream)
 }
 
 char*
+clone_raw_escaped_sequence (char* start, size_t length)
+{
+  for (; *start != '('; ++start)
+    length--;
+  start++;
+  for (; start[length] != ')'; length--);
+  char* alloc = calloc (length, sizeof (char));
+  memcpy (alloc, start, length);
+  return alloc;
+}
+
+char*
 clone_escaped_sequence (char* start, size_t length, bool is_raw)
 {
-  __builtin_unimplemented();
+  if (is_raw)
+    return clone_raw_escaped_sequence (start, length);
+  char* alloc = calloc (length, sizeof (char));
+  size_t dst_i = 0;
+  printf("length %zu\n", length);
+  for (size_t i = 0; i < length; ++i)
+  {
+    char src_char = start[i];
+  /* fragment SimpleEscapeSequence
+    : '\\' ['"?abfnrtv\\]
+    ; */
+    if (src_char == '\\')
+    {
+      if (i + 1 >= length)
+      {
+        richloc_ctx->push_error ("stray '\\' in string/character",
+                                i + 1, 1);
+        free (alloc);
+        return NULL;
+      }
+      switch (start[i + 1])
+      {
+      #define SET_ALLOC_CASE(c, to) \
+          case c: alloc[dst_i++] = to; i++; break;
+        SET_ALLOC_CASE('\'', '\'');
+        SET_ALLOC_CASE('"', '"');
+        SET_ALLOC_CASE('?', '?');
+        SET_ALLOC_CASE('a', '\a');
+        SET_ALLOC_CASE('n', '\n');
+        SET_ALLOC_CASE('f', '\f');
+        SET_ALLOC_CASE('b', '\b');
+        SET_ALLOC_CASE('r', '\r');
+        SET_ALLOC_CASE('t', '\t');
+        SET_ALLOC_CASE('v', '\v');
+        SET_ALLOC_CASE('\\', '\\');
+        default:
+          richloc_ctx->push_error ("unknown escape sequence",
+                                   i + 1, 1);
+          free (alloc);
+          return NULL;
+      }
+    }
+    else
+    {
+      alloc[dst_i++] = src_char;
+    }
+  }
+  return alloc;
 }
 
 struct lexeme*
@@ -341,16 +472,14 @@ consume_string (impln(bytestream_t) stream, struct strchr_prefix* prefix)
   char quote_ty = *(char *)stream->peek (0);
   char *start = stream->peek (0), *end;
 
-  if (!quoted_strlen(stream, &end, quote_ty))
+  if (!quoted_strlen(stream, &end, quote_ty,
+                     (prefix != NULL)? prefix->is_raw: false))
     {
-      richloc_ctx->push_error ("unterminated string/character literal", 0,
-                               end - start + 1);
       stream->consume (end - start +  1);
       return NULL;
     }
 
   size_t length = end - start + 1;
-
   struct lexeme lex = {
     .type = (quote_ty == '"')? StringConstant: CharacterConstant,
     .length = length - 2,
@@ -365,14 +494,24 @@ consume_string (impln(bytestream_t) stream, struct strchr_prefix* prefix)
         = (prefix != NULL)? prefix->encoding: Ordinary;
       lex.ctx_for.character_constant.escaped
         = clone_escaped_sequence (start + 1, length - 2, false);
+      char* escaped = lex.ctx_for.character_constant.escaped;
+      if (escaped != NULL)
+        ucc_log("EscapedCharacter(%zu bytes): '%.*s'\n",
+                strlen (escaped), strlen (escaped), escaped);
     }
   else
     {
       lex.ctx_for.string_constant.encoding
         = (prefix != NULL)? prefix->encoding: Ordinary;
+      lex.ctx_for.string_constant.is_raw
+        = (prefix != NULL)? prefix->is_raw: false;
       lex.ctx_for.string_constant.escaped
         = clone_escaped_sequence (start + 1, length - 2,
                                   lex.ctx_for.string_constant.is_raw);
+      char* escaped = lex.ctx_for.string_constant.escaped;
+      if (escaped != NULL)
+        ucc_log("EscapedString(%zu bytes): '%.*s'\n",
+                strlen (escaped), strlen (escaped), escaped);
     }
 
   ucc_log("%s(%zu bytes): %.*s\n",
@@ -387,7 +526,7 @@ maybe_get_strchar_encoding (impln(bytestream_t) stream, size_t length,
                             bool is_char)
 {
   char *current = stream->peek (0),
-       *next = stream->peek (0);
+       *next = stream->peek (1);
   struct strchr_prefix prefix = {
     .encoding = Ordinary,
     .is_raw = false
@@ -460,7 +599,8 @@ consume_identifier (impln(bytestream_t) stream)
   {
     auto suffix = maybe_get_strchar_encoding(stream, length,
                                              *current == '\'');
-    if (suffix.encoding != Ordinary)
+    ucc_log("string prefix parsing\n");
+    if (suffix.encoding != Ordinary || suffix.is_raw)
     {
       stream->consume (suffix.length);
       return consume_string (stream, &suffix);
@@ -720,9 +860,21 @@ tokenize_translation_unit (thunk_self_ty(tokenizer_t) self,
       ucc_error ("lexing source files failed, halting compilation.\n");
       exit (EXIT_FAILURE);
     }
+
   list_for_each_entry(lexemes, lexeme)
   {
-    free (lexeme->val);
+    struct lexeme* lex = lexeme->val;
+    switch (lex->type)
+    {
+      case StringConstant:
+        free (lex->ctx_for.string_constant.escaped);
+        break;
+      case CharacterConstant:
+        free (lex->ctx_for.character_constant.escaped);
+        break;
+      default: break;
+    }
+    free (lex);
   }
   free_object (lexemes);
 }
@@ -762,10 +914,10 @@ declare_thunk_finalizer(tokenizer_t)(thunk_self_ty(tokenizer_t) self)
   {
     struct translation_unit* tru = current->val;
     auto stream = tru->io.stream;
-    ucc_log ("%p: finalizing bytestream object and data\n", stream);
+    ucc_log("%p: finalizing bytestream object and data\n", stream);
     free (thunk_public_attr(stream, data));
     free_object(stream);
-    ucc_log ("%s: freeing translation unit\n", tru->io.path);
+    ucc_log("%s: freeing translation unit\n", tru->io.path);
     free (tru);
   }
   free_object(thunk_public_attr(self, context).translation_units);

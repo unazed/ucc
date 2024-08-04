@@ -11,8 +11,8 @@
 
 struct error
 {
-  size_t stream_offs, line_no, line_offs;
-  size_t rel_offs, range;
+  ssize_t stream_offs, line_no, line_offs;
+  ssize_t rel_offs, range;
   impln(bytestream_t) stream;
   const char* msg;
 };
@@ -52,28 +52,30 @@ void
 print_error_line (const char* path, size_t line_no, size_t offset,
                   const char* msg)
 {
-  printf (CFGBOLDBLACK "%s:%zu:%zu: " CFGRED "error: " CRESET " %s\n",
+  printf (CFGBOLDBLACK "%s:%zu:%zu: " CFGRED "error " CRESET " %s\n",
           path, line_no, offset, msg);
 }
 
 void
-print_error (char* line_start, size_t line_length, size_t line_no,
-             size_t nonerror_range, size_t error_range)
+print_error (char* line_start, ssize_t line_length, ssize_t line_no,
+             ssize_t nonerror_range, ssize_t* error_range)
 {
   printf (" %*zu | ", LINE_NO_LPAD, line_no);
   printf ("%.*s", nonerror_range, line_start);
-  printf (CFGBOLDRED "%.*s" CRESET, error_range, line_start + nonerror_range);
 
-  ssize_t postamble_length = max(0, line_length - nonerror_range - error_range);
+  size_t clamped_range = min(strlen (line_start + nonerror_range),
+                             min(line_length, *error_range));
+  printf (CFGBOLDRED "%.*s" CRESET, clamped_range, line_start + nonerror_range);
+  *error_range -= clamped_range;
+
+  ssize_t postamble_length = max(
+    0, line_length - nonerror_range - clamped_range);
   printf ("%.*s\n", postamble_length,
-          line_start + nonerror_range + error_range);
+          line_start + nonerror_range + clamped_range);
 
   printf (" ");
   for (size_t i = 0; i < LINE_NO_LPAD; ++i)
     printf (" ");
-
-  size_t clamped_range = min(strlen (line_start + nonerror_range),
-                             min(line_length, error_range));
 
   printf (" | " CFGBOLDRED "%*s", nonerror_range + 1, "^");
   for (size_t i = 0; i < clamped_range - 1; ++i)
@@ -97,7 +99,7 @@ declare_thunk_method(richloc_ctx_t, show_errors)(
 
     print_error_line(thunk_public_attr(error->stream, path),
                      error->line_no, error->line_offs, error->msg);
-
+  
     size_t nr_range_lines = max(1, line_range (start_error, error->range));
     char* split_range = strtok (line_start, "\n");
 
@@ -105,11 +107,10 @@ declare_thunk_method(richloc_ctx_t, show_errors)(
     {
       print_error(split_range, strlen (split_range), error->line_no + i,
                   error->line_offs + error->rel_offs,
-                  error->range);
+                  &error->range);
       error->line_offs = error->rel_offs = 0;
       split_range = strtok (NULL, "\n");
     }
-
   }
   return true;
 }
