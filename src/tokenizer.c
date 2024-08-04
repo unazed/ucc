@@ -123,9 +123,16 @@ quoted_strlen (impln(bytestream_t) stream, char** end, char quote,
 
   size_t length = 1;
   char *current = stream->peek (0),
-       *start = stream->peek (0);
+       *start = stream->peek (0),
+       *next = stream->peek (0);
   while (current != NULL && (current = stream->peek (length++)))
     {
+      next = stream->peek (length);
+      if (next != NULL && *current == '\\' && *next == quote)
+      {
+        length++;
+        continue;
+      }
       if (*current == quote)
         {
           *end = current;
@@ -401,7 +408,7 @@ clone_raw_escaped_sequence (char* start, size_t length)
     length--;
   start++;
   for (; start[length] != ')'; length--);
-  char* alloc = calloc (length, sizeof (char));
+  char* alloc = calloc (length + 1, sizeof (char));
   memcpy (alloc, start, length);
   return alloc;
 }
@@ -488,6 +495,13 @@ consume_string (impln(bytestream_t) stream, struct strchr_prefix* prefix)
 
   if (quote_ty == '\'')
     {
+      if (!(length - 2))
+      {
+        richloc_ctx->push_error ("empty character constant",
+                                 0, 2);
+        stream->consume (length);
+        return NULL;
+      }
       lex.ctx_for.character_constant.encoding
         = (prefix != NULL)? prefix->encoding: Ordinary;
       lex.ctx_for.character_constant.escaped
@@ -508,10 +522,8 @@ consume_string (impln(bytestream_t) stream, struct strchr_prefix* prefix)
                                   lex.ctx_for.string_constant.is_raw);
       char* escaped = lex.ctx_for.string_constant.escaped;
       if (escaped != NULL)
-      {
         ucc_log("EscapedString(%zu bytes): '%.*s'\n",
                 strlen (escaped), strlen (escaped), escaped);
-      }
     }
 
   ucc_log("%s(%zu bytes): %.*s\n",

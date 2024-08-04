@@ -52,7 +52,7 @@ void
 print_error_line (const char* path, size_t line_no, size_t offset,
                   const char* msg)
 {
-  printf (CFGBOLDBLACK "%s:%zu:%zu: " CFGRED "error " CRESET " %s\n",
+  printf (CFGBOLDBLACK "%s:%zu:%zu: " CFGRED "error:" CRESET " %s\n",
           path, line_no, offset, msg);
 }
 
