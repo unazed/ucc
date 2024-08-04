@@ -31,4 +31,4 @@ Multiple compilation units are supported.
    - Rich diagnostics ([commit](https://github.com/unazed/ucc/commit/49426ceda3c1ae9c3ca8d0b2b5ec684fef77e64e))
    - Multiple translation units ([commit](https://github.com/unazed/ucc/commit/50ce08cf9e574ed28b8fe6115d52b4a630e0b62b))
 2. Parsing
-3. Code generation (LLVM frontend)
+3. Code generation (LLVM backend)
