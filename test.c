@@ -1,5 +1,7 @@
 int
 main (void)
 {
-  return 0800 + 0x0ulls;
+  int a = 09233 + 0xfsdff;
+  int b = 16ulll;
+  char* s = 'a
 }

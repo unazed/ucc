@@ -252,5 +252,53 @@
    "-lm"
   ],
   "file": "src/tokenizer.c"
+ },
+ {
+  "directory": "/home/unazed/Programming/c/ucc",
+  "arguments": [
+   "gcc",
+   "-Wall",
+   "-O0",
+   "-fcf-protection=none",
+   "-ggdb",
+   "-fcompare-debug-second",
+   "-std=gnu17",
+   "-Wno-strict-prototypes",
+   "-Wno-format",
+   "-Wno-attributes",
+   "-Iinclude",
+   "-MMD",
+   "-MP",
+   "-c",
+   "src/parser.c",
+   "-o",
+   "build/parser.o",
+   "-lm"
+  ],
+  "file": "src/parser.c"
+ },
+ {
+  "directory": "/home/unazed/Programming/c/ucc",
+  "arguments": [
+   "gcc",
+   "-Wall",
+   "-O0",
+   "-fcf-protection=none",
+   "-ggdb",
+   "-fcompare-debug-second",
+   "-std=gnu17",
+   "-Wno-strict-prototypes",
+   "-Wno-format",
+   "-Wno-attributes",
+   "-Iinclude",
+   "-MMD",
+   "-MP",
+   "-c",
+   "src/richloc.c",
+   "-o",
+   "build/richloc.o",
+   "-lm"
+  ],
+  "file": "src/richloc.c"
  }
 ]

@@ -35,7 +35,7 @@
 #define clamp(a, b, x) max(a, min(b, x))
 
 #define ucc_error(msg, ...) \
-  printf (CFGBOLDWHITE "%s:%d" CRESET ", " CFGRED "critical" CRESET \
+  printf (CFGBOLDBLACK "%s:%d" CRESET ", " CFGRED "critical" CRESET \
       ": " msg, __FILE__, __LINE__,##__VA_ARGS__)
 
 #ifdef DEBUG
