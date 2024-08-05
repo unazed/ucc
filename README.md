@@ -30,9 +30,11 @@ Multiple compilation units are supported.
        with suffixes supported
      - Identifiers ([commit](https://github.com/unazed/ucc/commit/38d2ea53cfedbc53300dbcc8fabea5aa06744cad))
      - Unary/binary operators ([commit](https://github.com/unazed/ucc/commit/38d2ea53cfedbc53300dbcc8fabea5aa06744cad))
-     - **TODO:** Include directives/multiline macros
+     - Include directives/multiline macros ([commit](https://github.com/unazed/ucc/commit/cb69a4418ba1717739580dc1678ee7337cd04f09))
+     - Dumping lexer output to file ([commit](https://github.com/unazed/ucc/commit/cb69a4418ba1717739580dc1678ee7337cd04f09))
    - Rich diagnostics ([commit](https://github.com/unazed/ucc/commit/49426ceda3c1ae9c3ca8d0b2b5ec684fef77e64e))
    - Multiple translation units ([commit](https://github.com/unazed/ucc/commit/50ce08cf9e574ed28b8fe6115d52b4a630e0b62b))
+   - Regression testing ([commit](https://github.com/unazed/ucc/commit/405a7089a328e0755a67f8cc0fe6967f4a8478a9))
 2. Preprocessing
 3. Parsing
 4. Code generation (LLVM backend)
