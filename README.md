@@ -21,7 +21,8 @@ Multiple compilation units are supported.
    - Lexing
      - Raw strings ([commit](https://github.com/unazed/ucc/commit/d6d57bae96cb86b295fa2e16a4465b8c5e579dc9))
      - Strings w/ encodings (UTF8, UTF16, UTF32 and wide encodings) ([commit](https://github.com/unazed/ucc/commit/d6d57bae96cb86b295fa2e16a4465b8c5e579dc9))
-       - **TODO:** Octal/hexadecimal/universal escape sequences
+       - Octal/hexadecimal sequences ([commit](https://github.com/unazed/ucc/commit/6717ad5cf35923ebe64ae2685e2295794c82406d))
+       - **TODO:** Universal escape sequences (unlikely to do, snorefest)
      - Floating point numbers (and hexadecimal floats) ([commit](https://github.com/unazed/ucc/commit/0aee55fb8943b1dce75f41c8d99465af4fa114d6))
      - Decimal numbers ([commit](https://github.com/unazed/ucc/commit/38d2ea53cfedbc53300dbcc8fabea5aa06744cad)),
        octal numbers ([commit](https://github.com/unazed/ucc/commit/92e9c9f5b7652e3e9799bc5a96b5f738bc924675)),
