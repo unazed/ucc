@@ -1,4 +1,4 @@
-name: C CI
+name: x86-64 CI
 
 on:
   push:
