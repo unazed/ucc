@@ -1,6 +1,7 @@
 #include "common.h"
 #include "grammar.h"
 #include "list.h"
+#include "strntol.h"
 #include "thunk.h"
 #include "tokenizer.h"
 #include "richloc.h"
@@ -542,22 +543,24 @@ consume_comment (impln(bytestream_t) stream)
 }
 
 char*
-clone_raw_escaped_sequence (char* start, size_t length)
+clone_raw_escaped_sequence (char* start, size_t* out_length, size_t length)
 {
   for (; *start != '('; ++start)
     length--;
   start++;
   for (; start[length] != ')'; length--);
   char* alloc = calloc (length + 1, sizeof (char));
+  *out_length = length;
   memcpy (alloc, start, length);
   return alloc;
 }
 
 char*
-clone_escaped_sequence (char* start, size_t length, bool is_raw)
+clone_escaped_sequence (char* start, size_t* out_length, size_t length,
+                        bool is_raw)
 {
   if (is_raw)
-    return clone_raw_escaped_sequence (start, length);
+    return clone_raw_escaped_sequence (start, out_length, length);
   char* alloc = calloc (length + 1, sizeof (char));
   size_t dst_i = 0;
   for (size_t i = 0; i < length; ++i)
@@ -590,9 +593,39 @@ clone_escaped_sequence (char* start, size_t length, bool is_raw)
         SET_ALLOC_CASE('t', '\t');
         SET_ALLOC_CASE('v', '\v');
         SET_ALLOC_CASE('\\', '\\');
+        case 'x':
+        {
+          char* hex_end = &start[i + 2];
+          size_t seq_length = 0;
+          while (isxdigit (*hex_end))
+            {
+              hex_end++;
+              seq_length++;
+            }
+          hex_end -= min(2, seq_length);
+          alloc[dst_i++]
+            = (char)strntol (hex_end, min(2, seq_length), NULL, 16);
+          i += seq_length + 1;
+          break;
+        }
+        case '0' ... '7':
+        {
+          char* octal_end = &start[i + 1];
+          size_t octal_length;
+          for (octal_length = 0; octal_length < 3; ++octal_length)
+          {
+            if (*octal_end < '0' || *octal_end > '7')
+              break;
+            octal_end++;
+          }
+          alloc[dst_i++] = strntol (
+            octal_end - octal_length, octal_length, NULL, 8);
+          i += octal_length;
+          break;
+        }
         default:
           richloc_ctx->push_error ("unknown escape sequence",
-                                   i + 1, 1);
+                                   i + 2, 1);
           free (alloc);
           return NULL;
       }
@@ -602,6 +635,7 @@ clone_escaped_sequence (char* start, size_t length, bool is_raw)
       alloc[dst_i++] = src_char;
     }
   }
+  *out_length = dst_i;
   return alloc;
 }
 
@@ -644,12 +678,13 @@ consume_string (impln(bytestream_t) stream, struct strchr_prefix* prefix)
       }
       lex.ctx_for.character_constant.encoding
         = (prefix != NULL)? prefix->encoding: Ordinary;
+      size_t* esc_length = &lex.ctx_for.character_constant.length;
       lex.ctx_for.character_constant.escaped
-        = clone_escaped_sequence (start + 1, length - 2, false);
+        = clone_escaped_sequence (start + 1, esc_length, length - 2, false);
       char* escaped = lex.ctx_for.character_constant.escaped;
       if (escaped != NULL)
         ucc_log("EscapedCharacter(%zu bytes): '%.*s'\n",
-                strlen (escaped), strlen (escaped), escaped);
+                *esc_length, *esc_length, escaped);
     }
   else
     {
@@ -657,13 +692,14 @@ consume_string (impln(bytestream_t) stream, struct strchr_prefix* prefix)
         = (prefix != NULL)? prefix->encoding: Ordinary;
       lex.ctx_for.string_constant.is_raw
         = (prefix != NULL)? prefix->is_raw: false;
+      size_t* esc_length = &lex.ctx_for.string_constant.length;
       lex.ctx_for.string_constant.escaped
-        = clone_escaped_sequence (start + 1, length - 2,
+        = clone_escaped_sequence (start + 1, esc_length, length - 2,
                                   lex.ctx_for.string_constant.is_raw);
       char* escaped = lex.ctx_for.string_constant.escaped;
       if (escaped != NULL)
         ucc_log("EscapedString(%zu bytes): '%.*s'\n",
-                strlen (escaped), strlen (escaped), escaped);
+                *esc_length, *esc_length, escaped);
     }
 
   ucc_log("%s(%zu bytes): %.*s\n",

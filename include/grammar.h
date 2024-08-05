@@ -54,6 +54,7 @@ struct ctx_string_constant
 {
   enum strchr_encoding encoding;
   char* escaped;
+  size_t length;
   bool is_raw;
 };
 
@@ -61,6 +62,7 @@ struct ctx_character_constant
 {
   enum strchr_encoding encoding;
   char* escaped;
+  size_t length;
 };
 
 struct ctx_floating_constant
