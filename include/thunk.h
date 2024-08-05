@@ -174,7 +174,7 @@
     typeof (result->val) error(void* base_exc) \
     { \
       on_error \
-      return (typeof (result->val)) {}; \
+      return (typeof (result->val)) { 0 }; \
     } \
     typeof (result->val) success(void) \
     { \
