@@ -90,7 +90,7 @@
   { \
     thunk_struct_entry_name(thunk_name).impln(base_methods).method_name \
       = (void *)thunk_method_impl_name(thunk_name, method_name); \
-    return (typeof (thunk_dummy_name(thunk_name, method_name)())){}; \
+    return (typeof (thunk_dummy_name(thunk_name, method_name)())){ 0 }; \
   } \
   typeof (thunk_dummy_name(thunk_name, method_name)()) \
   thunk_method_impl_name(thunk_name, method_name)
