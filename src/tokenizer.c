@@ -233,16 +233,156 @@ consume_integer_suffix (struct lexeme* constant,
   return copy_lexeme_into_heap(*constant);
 }
 
+bool
+consume_floating_suffix (impln(bytestream_t) stream, struct lexeme* lex)
+{
+  size_t start = lex->length;
+  char *current = stream->peek (lex->length++);
+  size_t suffix_length = 1;
+
+  if (tolower (*current) == 'f')
+    lex->ctx_for.floating_constant.suffix = FloatSuffix;
+  else if (tolower (*current) == 'l')
+    lex->ctx_for.floating_constant.suffix = LongDoubleSuffix;
+
+  while (current != NULL && (current = stream->peek (lex->length++)))
+    {
+      if (!isalnum (*current))
+        break;
+      suffix_length++;
+    }
+  lex->length--;
+
+  if (suffix_length != 1)
+  {
+    richloc_ctx->push_error ("invalid suffix on floating constant",
+                             start, suffix_length);
+    return false;
+  }
+
+  ucc_log("Parsed float suffix (%zu bytes): '%.*s'\n",
+          suffix_length, suffix_length, stream->peek (lex->length) - suffix_length);
+  return true;
+}
+
+bool
+consume_number_exponent (impln(bytestream_t) stream, struct lexeme* lex)
+{
+  char *current = stream->peek (lex->length++),
+       *next = stream->peek (lex->length);
+  size_t exp_length = 1;
+
+  if (next && (*next == '+' || *next == '-'))
+    {
+      lex->length++;
+      exp_length++;
+    }
+
+  while (current != NULL && (current = stream->peek (lex->length)))
+    {
+      if (!isdigit (*current))
+        break;
+      lex->length++;
+      exp_length++;
+    }
+
+  if (lex->length - 1 == 1)
+    {
+      richloc_ctx->push_error ("expected numeric exponent",
+                               lex->length, 1);
+      return false;
+    }
+  ucc_log("Parsed exponent (%zu bytes): %.*s\n",
+          exp_length, exp_length, stream->peek (lex->length - exp_length));
+  return true;
+}
+
 struct lexeme*
 consume_hex_floating_number (impln(bytestream_t) stream)
 {
-  __builtin_unimplemented ();
+  struct lexeme lex = {
+    .type = FloatingConstant,
+    .ctx_for.floating_constant.base = HexadecimalFloatingConstant,
+    .raw = stream->peek (0),
+    .length = 2
+  };
+
+  char* current = stream->peek (0);
+  bool has_exponent = false;
+
+  while (current != NULL && (current = stream->peek (lex.length)))
+  {
+    if (!has_exponent && tolower (*current) == 'p')
+      {
+        if (!consume_number_exponent (stream, &lex))
+          {
+            stream->consume (lex.length);
+            return NULL;
+          }
+        has_exponent = true;
+        continue;
+      }
+    if (!isxdigit (*current) && isalpha (*current))
+      {
+        if (!consume_floating_suffix (stream, &lex))
+          {
+            stream->consume (lex.length);
+            return NULL;
+          }
+        break;
+      }
+    else if (*current != '.' && !isxdigit (*current))
+      break;
+    lex.length++;
+  }
+
+  ucc_log("HexFloat(%zu bytes): '%.*s'\n", lex.length, lex.length, lex.raw);
+  stream->consume (lex.length);
+  return copy_lexeme_into_heap (lex);
 }
 
 struct lexeme*
 consume_floating_number (impln(bytestream_t) stream)
 {
-  __builtin_unimplemented ();
+  struct lexeme lex = {
+    .type = FloatingConstant,
+    .ctx_for.floating_constant.base = DecimalFloatingConstant,
+    .raw = stream->peek (0),
+    .length = 0
+  };
+
+  char* current = stream->peek (0);
+  bool has_exponent = false;
+
+  while (current != NULL && (current = stream->peek (lex.length)))
+  {
+    if (!has_exponent && tolower (*current) == 'e')
+      {
+        if (!consume_number_exponent (stream, &lex))
+          {
+            stream->consume (lex.length);
+            return NULL;
+          }
+        has_exponent = true;
+        continue;
+      }
+    if (isalpha (*current))
+      {
+        if (!consume_floating_suffix (stream, &lex))
+          {
+            stream->consume (lex.length);
+            return NULL;
+          }
+        break;
+      }
+    else if (*current != '.' && !isdigit (*current))
+      break;
+    lex.length++;
+  }
+
+  ucc_log("Float(%zu bytes): '%.*s'\n", lex.length, lex.length, lex.raw);
+  stream->consume (lex.length);
+  return copy_lexeme_into_heap (lex);
 }
 
 struct lexeme*
