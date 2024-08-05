@@ -11,6 +11,7 @@
 struct compiler_flags
 {
   bool tokenize_comments;
+  const char* lexer_output;
 };
 
 define_thunk_method_maythrow(tokenizer_t, bool, load_file)(InArg char* path)

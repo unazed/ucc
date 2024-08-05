@@ -9,6 +9,7 @@
 
 enum lexeme_ty
 {
+  PreprocessorDirective = 0,
   NewLine,
   IntegerConstant,
   FloatingConstant,
@@ -39,6 +40,7 @@ enum lexeme_ty
   Assign, AssignEqual,
   Less, LessEqual, LeftShift, LeftShiftAssign,
   Greater, GreaterEqual, RightShift, RightShiftAssign,
+  Backslash,
 };
 
 enum strchr_encoding

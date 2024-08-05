@@ -5,6 +5,7 @@
 #include "thunk.h"
 #include "tokenizer.h"
 #include "richloc.h"
+#include "lex-dump.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -204,6 +205,7 @@ consume_integer_suffix (struct lexeme* constant,
     suffix_length++;
 
   char* start_suffix = stream->peek (constant->length);
+  SET_SUFFIX(constant, integer_constant, NoIntegerSuffix, false);
 
   if (!strncasecmp (start_suffix, "ull", suffix_length)
       || !strncasecmp (start_suffix, "llu", suffix_length))
@@ -213,7 +215,7 @@ consume_integer_suffix (struct lexeme* constant,
   else if (!strncasecmp (start_suffix, "ul", suffix_length)
       || !strncasecmp (start_suffix, "lu", suffix_length))
     {
-      SET_SUFFIX(constant, integer_constant, LongLongSuffix, true);
+      SET_SUFFIX(constant, integer_constant, LongSuffix, true);
     }
   else if (!strncasecmp (start_suffix, "l", suffix_length))
     {
@@ -261,8 +263,21 @@ consume_floating_suffix (impln(bytestream_t) stream, struct lexeme* lex)
     return false;
   }
 
+  char suffix = *(char *)(stream->peek (lex->length) - suffix_length);
+  if (suffix == 'f')
+    lex->ctx_for.floating_constant.suffix = FloatSuffix;
+  else if (suffix == 'l')
+    lex->ctx_for.floating_constant.suffix = LongDoubleSuffix;
+  else
+    {
+      richloc_ctx->push_error ("unknown suffix on floating consant",
+                               start, suffix_length);
+      return false;
+    }
+
   ucc_log("Parsed float suffix (%zu bytes): '%.*s'\n",
-          suffix_length, suffix_length, stream->peek (lex->length) - suffix_length);
+          suffix_length,
+          suffix_length, stream->peek (lex->length) - suffix_length);
   return true;
 }
 
@@ -323,7 +338,7 @@ consume_hex_floating_number (impln(bytestream_t) stream)
         has_exponent = true;
         continue;
       }
-    if (!isxdigit (*current) && isalpha (*current))
+    if (has_exponent && isalpha (*current))
       {
         if (!consume_floating_suffix (stream, &lex))
           {
@@ -701,7 +716,6 @@ consume_string (impln(bytestream_t) stream, struct strchr_prefix* prefix)
         ucc_log("EscapedString(%zu bytes): '%.*s'\n",
                 *esc_length, *esc_length, escaped);
     }
-
   ucc_log("%s(%zu bytes): %.*s\n",
           (quote_ty == '\'')? "Character": "String",
           length, length, stream->peek (0));
@@ -807,6 +821,30 @@ consume_identifier (impln(bytestream_t) stream)
   return copy_lexeme_into_heap(ident);
 }
 
+struct lexeme*
+consume_directive (impln(bytestream_t) stream)
+{
+  struct lexeme lex = {
+    .type = PreprocessorDirective,
+    .raw = stream->peek (0),
+    .length = 0
+  };
+  char *current = stream->peek (0),
+       *next = stream->peek (1);
+  
+  while (current != NULL && (current = stream->peek (lex.length)))
+  {
+    lex.length++;
+    next = stream->peek (lex.length);
+    if (next != NULL && *current != '\\' && *next == '\n')
+      break;
+  }
+  ucc_log ("Directive(%zu bytes) '%.*s'\n", lex.length, min(16, lex.length),
+           lex.raw);
+  stream->consume (lex.length);
+  return copy_lexeme_into_heap(lex);
+}
+
 impln(list_t)
 lex_translation_unit (thunk_self_ty(tokenizer_t) self,
                       struct translation_unit* unit)
@@ -873,7 +911,8 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
 
         case '#':
         {
-          __builtin_unimplemented();
+          try_append_lexeme(lexemes, consume_directive (stream));
+          break;
         }
         case '!':
         {
@@ -1009,8 +1048,9 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
           break;
         }
         case '.':
-          if (next && !isdigit (*next))
+          if (next != NULL && !isdigit (*next))
             {
+              ucc_log ("Dot\n");
               consume_single_lexeme(lexemes, stream, Dot);
               break;
             }
@@ -1050,6 +1090,10 @@ tokenize_translation_unit (thunk_self_ty(tokenizer_t) self,
       ucc_error ("lexing source files failed, halting compilation.\n");
       exit (EXIT_FAILURE);
     }
+
+  auto lexer_out_path = thunk_public_attr(self, flags).lexer_output;
+  if (lexer_out_path != NULL)
+    write_lexer_output_to_file(lexemes, lexer_out_path);
 
   list_for_each_entry(lexemes, lexeme)
   {

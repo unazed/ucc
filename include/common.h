@@ -14,6 +14,7 @@
 #define CRESET "\e[0m"
 #define CFGRED "\e[0;31m"
 #define CFGBLUE "\e[0;34m"
+#define CFGYELL "\e[0;33m"
 #define CFGBOLDWHITE "\e[1;37m"
 #define CFGBOLDBLACK "\e[0;30m"
 #define CFGBOLDRED "\e[1;31m"
@@ -37,6 +38,8 @@
 #define ucc_error(msg, ...) \
   printf (CFGBOLDBLACK "%s:%d" CRESET ", " CFGRED "critical" CRESET \
       ": " msg, __FILE__, __LINE__,##__VA_ARGS__)
+#define ucc_info(msg, ...) \
+  printf (CFGYELL "info: " CRESET msg,##__VA_ARGS__)
 
 #ifdef DEBUG
   #define ucc_log(msg, ...) \
