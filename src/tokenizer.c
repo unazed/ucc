@@ -183,8 +183,8 @@ declare_thunk_method(tokenizer_t, load_file) (
   tru->io.stream = new_bytestream (data, FILE_MEMBSIZE, file_size);
   thunk_public_attr(tru->io.stream, path) = path;
   ucc_log("%s: created bytestream (%zu bytes)\n", path, nread);
-  thunk_public_attr(self, context).translation_units->append (tru);
-  return thunk_result_t(tokenizer_t, load_file, true);
+  auto tr = thunk_public_attr(self, context).translation_units->append (tru);
+  return thunk_result_t(tokenizer_t, load_file, tr);
 }
 
 struct lexeme*
@@ -788,6 +788,15 @@ maybe_get_strchar_encoding (impln(bytestream_t) stream, size_t length,
   return prefix;
 }
 
+void
+identify_identifier (impln(bytestream_t) stream, struct lexeme* lex)
+{
+  lex->ctx_for.identifier.is_keyword = grm_is_keyword (lex);
+  lex->ctx_for.identifier.is_type_qual = grm_is_type_qualifier (lex);
+  lex->ctx_for.identifier.is_type_spec = grm_is_type_specifier(lex);
+  lex->ctx_for.identifier.is_func_spec = grm_is_function_specifier(lex);
+}
+
 struct lexeme*
 consume_identifier (impln(bytestream_t) stream)
 {
@@ -815,6 +824,7 @@ consume_identifier (impln(bytestream_t) stream)
     .raw = stream->peek (0)
   };
 
+  identify_identifier (stream, &ident);
   ucc_log("Identifier(%.*s)\n", length, ident.raw);
 
   stream->consume (length);
@@ -824,6 +834,7 @@ consume_identifier (impln(bytestream_t) stream)
 struct lexeme*
 consume_directive (impln(bytestream_t) stream)
 {
+  ucc_info("Preprocessor directives are not supported in parsing\n");
   struct lexeme lex = {
     .type = PreprocessorDirective,
     .raw = stream->peek (0),
@@ -1075,11 +1086,17 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
     ucc_error("aborting tokenizing process due to lexical errors\n");
     exit (EXIT_FAILURE);
   }
+  struct lexeme lex = {
+    .type = EndOfFile,
+    .length = 0,
+    .raw = stream->peek (0)
+  };
+  lexemes->append (copy_lexeme_into_heap (lex));
   ucc_log("parsed %zu tokens\n", thunk_public_attr (lexemes, length));
   return lexemes;
 }
 
-void
+impln(list_t)
 tokenize_translation_unit (thunk_self_ty(tokenizer_t) self,
                            struct translation_unit* unit)
 {
@@ -1091,37 +1108,20 @@ tokenize_translation_unit (thunk_self_ty(tokenizer_t) self,
       exit (EXIT_FAILURE);
     }
 
+  unit->token_stream = lexemes;
+
   auto lexer_out_path = thunk_public_attr(self, flags).lexer_output;
   if (lexer_out_path != NULL)
     write_lexer_output_to_file(lexemes, lexer_out_path);
 
-  list_for_each_entry(lexemes, lexeme)
-  {
-    struct lexeme* lex = lexeme->val;
-    switch (lex->type)
-    {
-      case StringConstant:
-        free (lex->ctx_for.string_constant.escaped);
-        break;
-      case CharacterConstant:
-        free (lex->ctx_for.character_constant.escaped);
-        break;
-      default: break;
-    }
-    free (lex);
-  }
-  free_object (lexemes);
+  return lexemes;
 }
 
-declare_thunk_method(tokenizer_t, tokenize)(thunk_self_ty(tokenizer_t) self)
+declare_thunk_method(tokenizer_t, tokenize)(
+  thunk_self_ty(tokenizer_t) self, struct translation_unit* unit)
 {
-  list_for_each_entry(
-    thunk_public_attr(self, context).translation_units, iter)
-  {
-    struct translation_unit* unit = iter->val;
-    ucc_log("%s: tokenizing translation unit\n", unit->io.path);
-    tokenize_translation_unit (self, unit);
-  }
+  ucc_log("%s: tokenizing translation unit\n", unit->io.path);
+  tokenize_translation_unit (self, unit);
   return true;
 }
 
@@ -1135,10 +1135,32 @@ declare_thunk_method(tokenizer_t, set_flags)(thunk_self_ty(tokenizer_t) self,
   return true;
 }
 
+declare_thunk_method(tokenizer_t, get_translation_units)(
+  thunk_self_ty(tokenizer_t) self)
+{
+  return thunk_public_attr(self, context).translation_units;
+}
+
 declare_thunk_initializer(tokenizer_t)(thunk_self_ty(tokenizer_t) self)
 {
   thunk_public_attr(self, context).translation_units = new_object(list_t);
   richloc_ctx = new_object(richloc_ctx_t);
+}
+
+void
+free_lexeme (struct lexeme* lexeme)
+{
+  switch (lexeme->type)
+  {
+    case StringConstant:
+      free (lexeme->ctx_for.string_constant.escaped);
+      break;
+    case CharacterConstant:
+      free (lexeme->ctx_for.character_constant.escaped);
+      break;
+    default: break;
+  }
+  free (lexeme);
 }
 
 declare_thunk_finalizer(tokenizer_t)(thunk_self_ty(tokenizer_t) self)
@@ -1146,12 +1168,24 @@ declare_thunk_finalizer(tokenizer_t)(thunk_self_ty(tokenizer_t) self)
   list_for_each_entry(thunk_public_attr(self, context).translation_units,
                       current)
   {
+    ucc_log("finalizing bytestream object and data\n");
     struct translation_unit* tru = current->val;
     auto stream = tru->io.stream;
-    ucc_log("%p: finalizing bytestream object and data\n", stream);
+
+    ucc_log("finalizing translation unit lexemes (%zu lexemes)\n",
+            thunk_public_attr(tru->token_stream, length));
+    list_for_each_entry(tru->token_stream, entry)
+    {
+      struct lexeme* lexeme = entry->val;
+      free_lexeme (lexeme);
+    }
+
+    ucc_log("%s: freeing stream object and translation unit\n", tru->io.path);
+    free_object (tru->token_stream);
+
     free (thunk_public_attr(stream, data));
     free_object(stream);
-    ucc_log("%s: freeing translation unit\n", tru->io.path);
+
     free (tru);
   }
   free_object(thunk_public_attr(self, context).translation_units);

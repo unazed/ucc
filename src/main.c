@@ -1,4 +1,7 @@
+#include "grammar.h"
+#include "list.h"
 #include "tokenizer.h"
+#include "parser.h"
 
 #include <argp.h>
 #include <stdio.h>
@@ -58,10 +61,12 @@ main (int argc, char **argv)
   struct arguments args = { 0 };
   argp_parse (&argp, argc, argv, 0, 0, &args);
 
-  auto tokenizer = new_object (tokenizer_t);
+  auto tokenizer = new_object(tokenizer_t);
+  auto parser = new_object(parser_t);
   tokenizer->set_flags (&args.flags);
 
   for (size_t i = 0; i < args.nr_filenames; ++i)
+  {
     thunk_unwrap (tokenizer->load_file (args.filenames[i]),
       {
         file_exception * ctx = base_exc;
@@ -70,9 +75,13 @@ main (int argc, char **argv)
       },
       {
         ucc_log ("loaded '%s' as translation unit OK\n", argv[i]);
+        tokenizer->tokenize (result->val);
+        parser->parse_unit (result->val);
       }
     );
-  tokenizer->tokenize ();
+  }
+
+  free_object (parser);
   free_object (tokenizer);
   return EXIT_SUCCESS;
 }

@@ -135,9 +135,10 @@ declare_thunk_initializer(richloc_ctx_t)(thunk_self_ty(richloc_ctx_t) self)
 
 declare_thunk_finalizer(richloc_ctx_t)(thunk_self_ty(richloc_ctx_t) self)
 {
-  list_for_each_entry(thunk_public_attr(self, error_list), entry)
+  auto error_list = thunk_public_attr(self, error_list);
+  list_for_each_entry(error_list, entry)
   {
     free (entry->val);
   }
-  free_object(thunk_public_attr(self, error_list));
+  free_object(error_list);
 }

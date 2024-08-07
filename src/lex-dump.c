@@ -129,8 +129,24 @@ write_lexer_output_to_file (impln(list_t) lexemes, const char* path)
         fprintf (fp, "RightBrace ");
         break;
       case Identifier:
-        fprintf (fp, "Identifier<%.*s> ", lexeme->length, lexeme->raw);
+      {
+        auto ctx = lexeme->ctx_for.identifier;
+        char *ident_type = "", *is_keyword = "";
+        if (ctx.is_keyword)
+          is_keyword = "Keyword";
+        if (ctx.is_type_spec)
+          ident_type = "TypeSpecifier";
+        else if (ctx.is_func_spec)
+          ident_type = "FuncSpecifier";
+        else if (ctx.is_type_qual)
+          ident_type = "TypeQualifier";
+        else if (ctx.is_storage_class_spec)
+          ident_type = "StorageClassSpecifier";
+
+        fprintf (fp, "%s%s<%.*s> ",
+                 is_keyword, ident_type, lexeme->length, lexeme->raw);
         break;
+      }
       case Dot:
         fprintf (fp, "Dot ");
         break;
@@ -253,6 +269,9 @@ write_lexer_output_to_file (impln(list_t) lexemes, const char* path)
         break;
       case Backslash:
         fprintf (fp, "Backslash ");
+        break;
+      case EndOfFile:
+        fprintf (fp, "EndOfFile");
         break;
     }
   }
