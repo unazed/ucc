@@ -53,7 +53,8 @@ parse_external_declaration (impln(list_t) tokens)
   if (is_function_definition)
     parse_function_definition(tokens);
   else
-    parse_declaration(tokens); 
+    parse_declaration(tokens);
+  return;
 }
 
 declare_thunk_method(parser_t, parse_unit)(thunk_self_ty(parser_t) self,
@@ -67,10 +68,10 @@ declare_thunk_method(parser_t, parse_unit)(thunk_self_ty(parser_t) self,
     return true;
   }
 
-  do
+/*  do
   {
     parse_external_declaration (unit->token_stream);
-  } while (next_token_is_not(unit->token_stream, EndOfFile));
+  } while (next_token_is_not(unit->token_stream, EndOfFile)); */
 
   return true;
 }
