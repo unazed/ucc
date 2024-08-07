@@ -1,4 +1,4 @@
-name: C CI
+name: x86-64 CI
 
 on:
   push:
@@ -14,4 +14,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: make
-      run: make
+      run: make COPTS="-DDEBUG"
+    - name: regressions
+      run: python scripts/run_regressions.py ./ucc ./tests/

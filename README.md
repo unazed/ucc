@@ -1,5 +1,7 @@
 ## Rationale
 
+[![C CI](https://github.com/unazed/ucc/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/unazed/ucc/actions/workflows/c-cpp.yml)
+
 UCC is a hand-written implementation aiming to support the full C11 grammar 
 specification.
 This is a hobby project with the goal to dive in head-first into compiler
