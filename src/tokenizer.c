@@ -27,13 +27,21 @@
       (list)->append (val); \
   }
 
-#define consume_single_lexeme(list, stream, type_) \
-  { \
+#define create_lexeme(stream, type_, length_) \
+  ({ \
     struct lexeme lex = { \
       .type = type_, \
       .raw = (stream)->peek (0), \
-      .length = 1 \
+      .length = length_, \
+      .line_no = thunk_public_attr(stream, line_no), \
+      .line_offs = thunk_public_attr(stream, line_offs), \
     }; \
+    lex; \
+  })
+
+#define consume_single_lexeme(list, stream, type_) \
+  { \
+    struct lexeme lex = create_lexeme(stream, type_, 1); \
     (list)->append (copy_lexeme_into_heap (lex)); \
     (stream)->consume (1); \
   }
@@ -66,14 +74,14 @@ quoted_raw_strlen (impln(bytestream_t) stream, char** end, char quote)
       {
         if (isspace (*current))
         {
-          richloc_ctx->push_error (
-              "whitespace/new-line in raw-string delimiter",
-              1, prefix_length);
+          richloc_ctx->push (
+              NULL, CriticalError,
+              "whitespace/new-line in raw-string delimiter");
           return false;
         }
-        richloc_ctx->push_error (
-            "non-alphanumeric character in raw-string delimiter",
-            length, 1);
+        richloc_ctx->push (
+          NULL, CriticalError,
+          "non-alphanumeric character in raw-string delimiter");
         return false;
       }
       prefix_length++;
@@ -81,8 +89,8 @@ quoted_raw_strlen (impln(bytestream_t) stream, char** end, char quote)
 
   if (current == NULL)
     {
-      richloc_ctx->push_error ("expected prefix in raw-string", 0,
-                               length);
+      richloc_ctx->push (NULL, CriticalError,
+                         "expected prefix in raw-string");
       *end = stream->peek (prefix_length - 2);
       return false;
     }
@@ -106,7 +114,7 @@ quoted_raw_strlen (impln(bytestream_t) stream, char** end, char quote)
 
   if (!terminated)
     {
-      richloc_ctx->push_error ("unterminated raw-string", 0, length);
+      richloc_ctx->push (NULL, CriticalError, "unterminated raw-string");
       *end = stream->peek (length - 2);
       return false;
     }
@@ -141,8 +149,8 @@ quoted_strlen (impln(bytestream_t) stream, char** end, char quote,
           return true;
         }
     }
-  richloc_ctx->push_error ("unterminated string/character literal", 0,
-                           (char *)stream->peek (length - 2) - start + 1);
+  richloc_ctx->push (NULL, CriticalError,
+                     "unterminated string/character literal");
   *end = stream->peek (length - 2);
   return false;
 }
@@ -175,7 +183,7 @@ declare_thunk_method(tokenizer_t, load_file) (
   auto file_size = ftell (fp);
   rewind (fp);
 
-  char* data = calloc (file_size, FILE_MEMBSIZE);
+  char* data = calloc (file_size + 1, FILE_MEMBSIZE);
   auto nread = fread (data, sizeof (char), file_size, fp);
   assert (nread == file_size / FILE_MEMBSIZE);
   fclose (fp);
@@ -227,8 +235,8 @@ consume_integer_suffix (struct lexeme* constant,
     }
   else
     {
-      richloc_ctx->push_error ("invalid suffix for integer",
-                               constant->length, suffix_length);
+      richloc_ctx->push (constant, CriticalError,
+                         "invalid suffix for integer");
     }
   ucc_log ("Number(%.*s) [suffix: '%.*s']\n", constant->length,
            stream->peek (0), suffix_length, start_suffix);
@@ -258,8 +266,8 @@ consume_floating_suffix (impln(bytestream_t) stream, struct lexeme* lex)
 
   if (suffix_length != 1)
   {
-    richloc_ctx->push_error ("invalid suffix on floating constant",
-                             start, suffix_length);
+    richloc_ctx->push (lex, CriticalError,
+                       "invalid suffix on floating constant");
     return false;
   }
 
@@ -270,8 +278,8 @@ consume_floating_suffix (impln(bytestream_t) stream, struct lexeme* lex)
     lex->ctx_for.floating_constant.suffix = LongDoubleSuffix;
   else
     {
-      richloc_ctx->push_error ("unknown suffix on floating consant",
-                               start, suffix_length);
+      richloc_ctx->push (lex, CriticalError,
+                         "unknown suffix on floating constant");
       return false;
     }
 
@@ -304,8 +312,7 @@ consume_number_exponent (impln(bytestream_t) stream, struct lexeme* lex)
 
   if (lex->length - 1 == 1)
     {
-      richloc_ctx->push_error ("expected numeric exponent",
-                               lex->length, 1);
+      richloc_ctx->push (lex, CriticalError, "expected numeric exponent");
       return false;
     }
   ucc_log("Parsed exponent (%zu bytes): %.*s\n",
@@ -316,12 +323,8 @@ consume_number_exponent (impln(bytestream_t) stream, struct lexeme* lex)
 struct lexeme*
 consume_hex_floating_number (impln(bytestream_t) stream)
 {
-  struct lexeme lex = {
-    .type = FloatingConstant,
-    .ctx_for.floating_constant.base = HexadecimalFloatingConstant,
-    .raw = stream->peek (0),
-    .length = 2
-  };
+  struct lexeme lex = create_lexeme(stream, FloatingConstant, 2);
+  lex.ctx_for.floating_constant.base = HexadecimalFloatingConstant;
 
   char* current = stream->peek (0);
   bool has_exponent = false;
@@ -360,12 +363,8 @@ consume_hex_floating_number (impln(bytestream_t) stream)
 struct lexeme*
 consume_floating_number (impln(bytestream_t) stream)
 {
-  struct lexeme lex = {
-    .type = FloatingConstant,
-    .ctx_for.floating_constant.base = DecimalFloatingConstant,
-    .raw = stream->peek (0),
-    .length = 0
-  };
+  struct lexeme lex = create_lexeme(stream, FloatingConstant, 0);
+  lex.ctx_for.floating_constant.base = DecimalFloatingConstant;
 
   char* current = stream->peek (0);
   bool has_exponent = false;
@@ -404,14 +403,10 @@ consume_floating_number (impln(bytestream_t) stream)
 struct lexeme*
 consume_hexadecimal_number (impln(bytestream_t) stream)
 {
-  char* current;
-  struct lexeme hex = {
-    .type = IntegerConstant,
-    .ctx_for.integer_constant.base = HexadecimalConstant,
-    .length = 2,
-    .raw = stream->peek (0)
-  };
+  struct lexeme hex = create_lexeme(stream, IntegerConstant, 2);
+  hex.ctx_for.integer_constant.base = HexadecimalConstant;
 
+  char* current;
   while ((current = stream->peek (hex.length)) != NULL
         && isxdigit (*current))
     hex.length++;
@@ -428,16 +423,11 @@ consume_hexadecimal_number (impln(bytestream_t) stream)
 struct lexeme*
 consume_octal_number (impln(bytestream_t) stream)
 {
+  struct lexeme octal = create_lexeme(stream, IntegerConstant, 1);
+  octal.ctx_for.integer_constant.base = OctalConstant;
+
   char *current;
   bool maybe_decimal = false;
-
-  struct lexeme octal = {
-    .type = IntegerConstant,
-    .ctx_for.integer_constant.base = OctalConstant,
-    .raw = stream->peek (0),
-    .length = 1
-  };
-
   while ((current = stream->peek (octal.length)) != NULL
         && isdigit (*current))
   {
@@ -457,7 +447,7 @@ consume_octal_number (impln(bytestream_t) stream)
        */
       if (current == NULL || *current != '.')
       {
-        richloc_ctx->push_error ("invalid digit in octal", 0, octal.length);
+        richloc_ctx->push (&octal, CriticalError, "invalid digit in octal");
       }
       else
         return consume_floating_number (stream);
@@ -482,13 +472,9 @@ consume_number (impln(bytestream_t) stream)
     return consume_octal_number (stream);
   if (*current == '.' || (next != NULL && *next == '.'))
     return consume_floating_number (stream);
-  
-  struct lexeme decimal_constant = {
-    .length = 0,
-    .type = IntegerConstant,
-    .ctx_for.integer_constant.base = DecimalConstant,
-    .raw = current
-  };
+
+  struct lexeme decimal_constant = create_lexeme(stream, IntegerConstant, 0);
+  decimal_constant.ctx_for.integer_constant.base = DecimalConstant;
 
   while ((current = stream->peek (decimal_constant.length)) != NULL)
   {
@@ -517,14 +503,10 @@ struct strchr_prefix
 struct lexeme*
 consume_comment (impln(bytestream_t) stream)
 {
+  struct lexeme lex = create_lexeme(stream, BlockComment, 2);
+
   char *current = stream->peek (0),
        *next = stream->peek (1);
-
-  struct lexeme lex = {
-    .type = BlockComment,
-    .raw = stream->peek (0),
-    .length = 2
-  };
 
   if (*next == '/')
   {
@@ -547,7 +529,7 @@ consume_comment (impln(bytestream_t) stream)
 
   if (current == NULL)
   {
-    richloc_ctx->push_error ("unterminated comment", 0, lex.length);
+    richloc_ctx->push (&lex, CriticalError, "unterminated comment");
     stream->consume (lex.length);
     return NULL;
   }
@@ -581,15 +563,12 @@ clone_escaped_sequence (char* start, size_t* out_length, size_t length,
   for (size_t i = 0; i < length; ++i)
   {
     char src_char = start[i];
-  /* fragment SimpleEscapeSequence
-    : '\\' ['"?abfnrtv\\]
-    ; */
     if (src_char == '\\')
     {
       if (i + 1 >= length)
       {
-        richloc_ctx->push_error ("stray '\\' in string/character",
-                                i + 1, 1);
+        richloc_ctx->push (NULL, CriticalError,
+                           "stray '\\' in string/character");
         free (alloc);
         return NULL;
       }
@@ -639,8 +618,7 @@ clone_escaped_sequence (char* start, size_t* out_length, size_t length,
           break;
         }
         default:
-          richloc_ctx->push_error ("unknown escape sequence",
-                                   i + 2, 1);
+          richloc_ctx->push (NULL, CriticalError, "unknown escape sequence");
           free (alloc);
           return NULL;
       }
@@ -659,7 +637,8 @@ consume_string (impln(bytestream_t) stream, struct strchr_prefix* prefix)
 {
   if (stream->peek (1) == NULL)
   {
-    richloc_ctx->push_error ("unterminated string/character literal", 0, 1);
+    richloc_ctx->push (NULL, CriticalError,
+                       "unterminated string/character literal");
     return NULL;
   }
 
@@ -674,20 +653,20 @@ consume_string (impln(bytestream_t) stream, struct strchr_prefix* prefix)
     }
 
   size_t length = end - start + 1;
-  struct lexeme lex = {
-    .type = (quote_ty == '"')? StringConstant: CharacterConstant,
-    .length = length - 2,
-    .ctx_for.character_constant.encoding
-      = (prefix != NULL)? prefix->encoding: Ordinary,
-    .raw = start + 1
-  };
+
+  struct lexeme lex = create_lexeme(
+    stream, (quote_ty == '"')? StringConstant: CharacterConstant, length - 2);
+  lex.raw = start + 1;
+  lex.ctx_for.character_constant.encoding
+    = (prefix != NULL)? prefix->encoding: Ordinary;
 
   if (quote_ty == '\'')
     {
       if (!(length - 2))
       {
-        richloc_ctx->push_error ("empty character constant",
-                                 0, 2);
+        lex.raw--;
+        lex.length += 2;
+        richloc_ctx->push (&lex, CriticalError, "empty character constant");
         stream->consume (length);
         return NULL;
       }
@@ -818,11 +797,7 @@ consume_identifier (impln(bytestream_t) stream)
     }
   }
 
-  struct lexeme ident = {
-    .type = Identifier,
-    .length = length,
-    .raw = stream->peek (0)
-  };
+  struct lexeme ident = create_lexeme(stream, Identifier, length);
 
   identify_identifier (stream, &ident);
   ucc_log("Identifier(%.*s)\n", length, ident.raw);
@@ -835,11 +810,7 @@ struct lexeme*
 consume_directive (impln(bytestream_t) stream)
 {
   ucc_info("Preprocessor directives are not supported in parsing\n");
-  struct lexeme lex = {
-    .type = PreprocessorDirective,
-    .raw = stream->peek (0),
-    .length = 0
-  };
+  struct lexeme lex = create_lexeme(stream, PreprocessorDirective, 0);
   char *current = stream->peek (0),
        *next = stream->peek (1);
   
@@ -862,16 +833,10 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
 {
 #define SINGLE_LEXEME_CASE(c, type) \
     case c: consume_single_lexeme(lexemes, stream, type); break;
-
 #define MULTI_LEXEME_CASE(c1, c2, type_, suffix) \
   case c1: \
   { \
-    ucc_log(#type_ "\n"); \
-    struct lexeme lex = { \
-      .type = type_, \
-      .raw = stream->peek (0), \
-      .length = 1 \
-    }; \
+    struct lexeme lex = create_lexeme(stream, type_, 1); \
     if (next && *next == c2) \
       { \
         lex.type = type_ ## suffix; \
@@ -927,11 +892,7 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
         }
         case '!':
         {
-          struct lexeme lex = {
-            .type = Not,
-            .raw = stream->peek (0),
-            .length = 1
-          };
+          struct lexeme lex = create_lexeme(stream, Not, 1);
           if (next && (*next == '='))
             {
               lex.type = NotEqual;
@@ -943,11 +904,7 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
         }
         case '|':
         {
-          struct lexeme lex = {
-            .type = Or,
-            .raw = stream->peek (0),
-            .length = 1
-          };
+          struct lexeme lex = create_lexeme(stream, Or, 1);
           if (next && (*next == '='))
             {
               lex.type = OrAssign;
@@ -964,11 +921,7 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
         }
         case '/':
         {
-          struct lexeme lex = {
-            .type = Div,
-            .length = 1,
-            .raw = stream->peek (0)
-          };
+          struct lexeme lex = create_lexeme(stream, Div, 1);
           if (next && (*next == '='))
             {
               lex.type = DivAssign;
@@ -996,11 +949,8 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
         case '+':
         case '-':
         {
-          struct lexeme lex = {
-            .type = (*chr == '+')? Plus: Minus,
-            .raw = stream->peek (0),
-            .length = 1
-          };
+          struct lexeme lex = create_lexeme(
+            stream, (*chr == '+')? Plus: Minus, 1);
           if (next && *next == *chr)
             {
               ucc_log("%screment\n", (*chr == '+')? "In": "De");
@@ -1027,11 +977,8 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
         case '>':
         case '<':
         {
-          struct lexeme lex = {
-            .type = (*chr == '<')? Less: Greater, 
-            .raw = stream->peek (0),
-            .length = 1
-          };
+          struct lexeme lex = create_lexeme(
+            stream, (*chr == '<')? Less: Greater, 1);
           if (next && *next == *chr)
             {
               lex.type = (*chr == '<')? LeftShift: RightShift;
@@ -1080,18 +1027,16 @@ lex_translation_unit (thunk_self_ty(tokenizer_t) self,
           exit (EXIT_FAILURE);
       }
     }
+
   if (richloc_ctx->has_errors ())
   {
     richloc_ctx->show_errors ();
     ucc_error("aborting tokenizing process due to lexical errors\n");
     exit (EXIT_FAILURE);
   }
-  struct lexeme lex = {
-    .type = EndOfFile,
-    .length = 0,
-    .raw = stream->peek (0)
-  };
-  lexemes->append (copy_lexeme_into_heap (lex));
+
+  struct lexeme eof = create_lexeme(stream, EndOfFile, 0);
+  lexemes->append (copy_lexeme_into_heap (eof));
   ucc_log("parsed %zu tokens\n", thunk_public_attr (lexemes, length));
   return lexemes;
 }
