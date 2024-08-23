@@ -1,7 +1,20 @@
 CC 			:= gcc
-CFLAGS 	:= -Wall -O0 -fcf-protection=none -ggdb -fcompare-debug-second \
-					 -std=gnu17 -Wno-strict-prototypes -Wno-format -Wno-attributes
-LIBS = -lm
+CFLAGS := -Wall -Werror -Wextra -Wpedantic -std=gnu17 \
+    -Wformat=2 -Wformat-security -Wconversion -Wshadow -Wcast-qual \
+    -Wcast-align -Wlogical-op -Wmissing-declarations -Wmissing-include-dirs \
+    -Wredundant-decls -Wswitch-default -Wswitch-enum -Wundef -Wno-unused \
+    -Wuninitialized -Wfloat-equal -Wdouble-promotion -Wpointer-arith \
+    -Wnull-dereference -Wvla -Wduplicated-cond -Wduplicated-branches \
+    -Wjump-misses-init -Wstrict-prototypes -Wstringop-truncation \
+    -Wmissing-prototypes -Wmissing-field-initializers -Wwrite-strings \
+		-Wunreachable-code -Wstrict-overflow=5 -Wno-incompatible-pointer-types -Os
+CFLAGS_DEBUG := -ggdb -fanalyzer -fsanitize=address,undefined,leak -save-temps \
+								-D_FORTIFY_SOURCE=3 -fstack-protector-strong \
+								-fstack-clash-protection -fstrict-aliasing -ftrivial-auto-var-init=zero \
+								-fno-omit-frame-pointer -fno-common -Og -pg
+COPTS := -D"_DEBUG_LOGLEVEL=3"
+
+LIBS    :=
 CEXT 		:= c
 OBJEXT 	:= o
 DEPEXT 	:= d
@@ -20,6 +33,9 @@ DEPENDS := $(patsubst $(SRCDIR)/%.$(CEXT),$(OBJDIR)/%.$(DEPEXT),$(SOURCES))
 .PHONY: all clean
 
 all: $(OBJDIR) $(TARGET)
+
+debug: CFLAGS += $(CFLAGS_DEBUG)
+debug: $(OBJDIR) $(TARGET)
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET)

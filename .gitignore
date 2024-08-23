@@ -1,7 +1,0 @@
-build/*
-.venv/*
-.cache/*
-.ccls-cache/*
-a.out
-t.c
-lexer.out
